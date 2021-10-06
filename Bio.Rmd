@@ -1,0 +1,1293 @@
+---
+title: "Bio"
+author: "Stefano Larsen"
+date: "5/27/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 6)
+```
+
+
+```{r}
+#library(readxl)
+library(tidyverse)
+library(reshape2)
+library(ggrepel)
+library(vegan)
+library(gdata)
+library(corrplot)
+library(data.table)
+#install.packages('gdata')
+library(gdata)
+install.packages('adespatial')
+library(adespatial)
+
+```
+
+
+# Import the invertebrate data as given by Isabelle
+```{r}
+bugs<- read.csv("~/Documents/LB_synchrony/Brianne Inverts to 2018 .csv")
+```
+
+# wotk on the site code. Add 'I' and remove 'DLB' from the string names
+```{r}
+bugs$Code=str_remove(bugs$Code, "DLB")
+str_sub(bugs$Code, 2,1)='I'
+bugs$Code
+bugs$X=NULL
+```
+
+# How many years per stream
+*site.occur* 
+```{r}
+table(bugs$Code, bugs$year)
+rowSums(table(bugs$Code, bugs$year))
+
+site.occur=(table(bugs$Code, bugs$year))
+
+```
+
+# Plot the site occurrence, number of years sampled
+*need to impute missing years for each spp in some sites*
+# year 
+```{r fig.width=6}
+site.occur %>% 
+  as.data.frame() %>% 
+  #filter(Var2!=c('1981', '1982')) %>% 
+ ggplot()+aes(Var2, Var1)+geom_tile(col='grey40',aes(fill=as.factor(Freq)))+xlab(NULL)+ylab(NULL)+theme(legend.position = 'none')+
+  theme(axis.text.x = element_text(angle = 90, vjust =0.4, hjust =-1))
+```
+
+# To create a complete and common df I should exclude LI3,LI5,GI1,GI2,CI6,CI3 and
+1981,1982,1994, 2008,2009,2011
+
+
+```{r}
+site.occur %>% 
+  as.data.frame() %>% 
+  filter(!Var2 %in% c('1981', '1982', '1994', '2008','2009','2011')) %>%
+  filter(!Var1 %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% 
+ ggplot()+aes(Var2, Var1)+geom_tile(col='grey40',aes(fill=as.factor(Freq)))+theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+```
+# Look at the LB10 sites with actual years holes, to be filled
+
+```{r}
+site.occur %>% 
+  as.data.frame() %>% 
+  filter(!Var2 %in% c('1981', '1982')) %>%
+  filter(!Var1 %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% 
+ ggplot()+aes(Var2, Var1)+geom_tile(col='grey40',aes(fill=as.factor(Freq)))+theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+ ggtitle('LB10 most complete')+xlab(NULL)+ylab(NULL)
+```
+
+
+
+
+
+# overall spp abundance and occurrences
+```{r fig.width=7}
+spp_occur=sort(colSums((decostand(bugs[,-c(1,2)], 'pa'))), decreasing = T)
+plot(spp_occur)
+
+spp_abb=sort(colSums(bugs[,-c(1,2)]), decreasing = T)
+plot(spp_abb)
+
+plot(log(spp_abb), log(spp_occur))
+
+```
+
+
+```{r}
+spp_site_occur=
+  sort(
+  bugs %>% 
+  select(-year) %>% 
+  group_by(Code) %>% summarise_all(sum) %>% 
+  select(-Code) %>% 
+  decostand('pa') %>% 
+  colSums(),
+  decreasing = T)
+
+```
+
+
+# gather bugs data in long format -useful for subsequent manipulations
+```{r}
+bugs.long=
+bugs %>% 
+  gather(Species, abund, -c(Code, year))
+```
+
+# code, year and species to factor
+```{r}
+bugs.long$Code=as.factor(bugs.long$Code)
+bugs.long$year=as.factor(bugs.long$year)
+bugs.long$Species=as.factor(bugs.long$Species)
+```
+
+# define the number of years, sites and species overall
+```{r}
+nlevels(bugs.long$year)
+nlevels(bugs.long$Code)
+nlevels(bugs.long$Species)
+```
+
+# create vector keeping year, site and species ID - useful for working in loops
+```{r}
+yearID=sort(unique(bugs.long$year))
+codeID=sort(unique(bugs.long$Code))
+speciesID=sort(unique(bugs.long$Species))
+```
+
+# Create a list keeping matrix of species x year - each spp a timeseries for each stream
+```{r}
+mylist=list()
+```
+
+```{r}
+
+for(code in 1:nlevels(bugs.long$Code)){
+  yearID=sort(unique(bugs.long$year))
+  codeID=sort(unique(bugs.long$Code))
+  speciesID=sort(unique(bugs.long$Species))
+  bugs.long.code=bugs.long[bugs.long$Code==codeID[code],]
+  bugs.long.mat.code=(spread(bugs.long.code[,-1], year, abund, drop=F, fill=0))
+   rownames(bugs.long.mat.code)=bugs.long.mat.code[,1]
+   bugs.long.mat.code[,1]=NULL
+ mylist[[code]]=bugs.long.mat.code
+}
+```
+
+#  see the list
+```{r}
+mylist[[2]]
+```
+
+# Convert the list of species x year (for each stream) into an *ARRAY* with dim = species x years x site
+*this could be useful for the CV stability function of Wang*
+
+```{r}
+myarray=array(as.numeric(unlist(mylist)), dim=c(nlevels(bugs.long$Species), nlevels(bugs.long$year), nlevels(bugs.long$Code)))
+dimnames(myarray)=list(speciesID, yearID, codeID)
+
+myarray[,,1]
+myarray[,,3]
+
+dim(myarray)# 139 species, 35 years, 16 sites (with many holes)
+```
+
+
+
+
+
+
+###############################
+# Work towards the *upset* plot
+
+```{r}
+upset.bugs=
+bugs %>% group_by(Code) %>% 
+  select(-year) %>% 
+  summarise_all(sum)
+
+upset.bugs=cbind(upset.bugs$Code, decostand(upset.bugs[,-1], 'pa'))
+
+upset.bugs.t=as.data.frame(t(upset.bugs[,-1]))
+names(upset.bugs.t)=upset.bugs$`upset.bugs$Code`
+```
+
+
+# Upset diagram not very helpful. Most taxa shared across all streams
+```{r}
+install.packages('UpSetR')
+library(UpSetR)
+```
+
+```{r fig.width=8}
+upset(upset.bugs.t, nsets = 16, sets=names(upset.bugs.t), keep.order = T, order.by = 'freq', text.scale = c(1,1,1,1,0.7,1))
+```
+
+
+#################################
+# Analysis of composition MDS #####
+##########################
+```{r}
+mds1=
+log(bugs[,-c(1,2)]+1) %>% 
+  select( names(spp_occur[spp_occur>10])) %>% 
+  metaMDS(try=30, trymax = 50, k=3)
+  
+```
+
+```{r}
+mds1.ax=cbind(bugs[,c(1,2)], mds1$points)
+```
+```{r fig.width=8}
+mds1.ax %>% 
+  mutate(year=as.numeric(year)) %>%
+  dplyr::filter(!Code %in% c('CI3', 'CI6','GI1','GI2')) %>% 
+  ggplot()+aes(MDS1, MDS2, col=year) +geom_point(size=0.5)+geom_path()+theme_bw()+
+  facet_wrap(~Code)+scale_color_gradient(high='darkblue', low='gold3')
+```
+
+##########
+## *PCoA* #####
+##########
+
+```{r}
+library(ape)
+```
+
+```{r}
+pcoa1=
+log(bugs[,-c(1,2)]+1) %>% 
+  select( names(spp_occur[spp_occur>10])) %>%
+  vegdist('bray') %>% 
+  pcoa()
+```
+
+```{r}
+pcoa1$values
+pcoa1$vectors
+```
+
+```{r}
+pcoa1.ax=
+  cbind(bugs[,c(1,2)], pcoa1$vectors)
+```
+
+```{r fig.width=7}
+pcoa1.ax%>% 
+  mutate(year=as.numeric(year)) %>%
+  dplyr::filter(!Code %in% c('CI3', 'CI6','GI1','GI2')) %>% 
+  ggplot()+aes(Axis.1, Axis.2, col=year) +geom_point(size=0.5)+geom_path()+theme_bw()+
+  facet_wrap(~Code)+scale_color_gradient(high='darkblue', low='gold3')+xlab('PCoA Axis1 (22%)')+ylab('PCoA Axis2 (14%)')
+```
+
+
+####################################################
+## Fist *simple synchrony* using populations as they are (no imputing)
+####################################################
+
+# Testng different subsetting of species. Here spp with overall occurrence >40 observations
+```{r}
+
+bugs %>% 
+  filter(!Code %in% c('CI3', 'CI6','GI1','GI2')) %>% 
+select( names(spp_occur[spp_occur>40])) 
+```
+
+# Here subsetting *spp occurring in > 6 streams*, while excluding certain streams for good (too few years).
+# The bugs subset with species occurring in > 6 streams *bugs.subs6*
+# LI5 seems to have many years, but large hole in 1995-2000
+# this is also like *LB10*
+```{r}
+
+bugs.subs6=
+  cbind(bugs %>%
+        filter(!year %in% c('1981', '1982', '1994', '2008','2009','2011')) %>% # excluding these years
+        filter(!Code %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% # excluding these sites
+        select(Code,year) ,
+  
+        bugs %>% 
+        filter(!year %in% c('1981', '1982', '1994', '2008','2009','2011')) %>%
+        filter(!Code %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% 
+        select( names(spp_site_occur[spp_site_occur>6]))
+  )
+```
+# *Must update the subset for imputation. I removed many years here, but it allows me to derive correlation for each species w/o many NAs!*
+
+
+```{r}
+table(test1$Code, test1$year)
+```
+
+
+
+# Create a vector with species identity for the reduced df with 10 streams and no holes
+```{r}
+speciesID.subs=
+colnames(bugs.subs6[,-c(1,2)])
+```
+
+# The list of *species synchrony* for each species between each stream in the reduced set of sites (LB10- bugs.subs6). Based on simple correlation
+```{r}
+spp.list.corr<-list()
+
+for(spp in 1:length(speciesID.subs)) {
+  spp.list.corr[[spp]]= 
+  #speciesID.subs=as.factor(names(spp_site_occur[spp_site_occur>6]))
+  
+  sppcorr=
+  bugs.subs6 %>% 
+  select(Code, year, speciesID.subs[spp]) %>%  
+  spread(Code, value=speciesID.subs[spp]) %>% select(-year) %>% 
+  cor(method='spearman') %>% 
+  gdata::unmatrix() %>% 
+  data.frame() %>% 
+  cbind(rep(speciesID.subs[spp], 1 )) %>% 
+    cbind(row.names(.)) %>% 
+  `colnames<-`(c('synch', 'Species','site.pair'))# use this function: `colnames<-` to assign column names within a pipe
+    }
+  
+
+spp.list.corr[[12]]
+
+```
+
+# Create a list similar to spp.list.corr but as simple correlation matrix. Used for calculating the mean across species.
+
+```{r}
+list2<-list()
+
+for(spp in 1:length(speciesID.subs)) {
+  list2[[spp]]= 
+  #speciesID.subs=as.factor(names(spp_site_occur[spp_site_occur>6]))
+  
+  sppcorr=
+  bugs.subs6 %>% 
+  select(Code, year, speciesID.subs[spp]) %>%  
+  spread(Code, value=speciesID.subs[spp]) %>% select(-year) %>% 
+  cor(method='spearman')
+}
+
+list2[41]
+```
+
+# Derive the mean synchrony across sites based on the mean synchrony of species in LB10 
+```{r}
+array2=array(as.numeric(unlist(list2)), dim=c(length(unique(bugs.subs6$Code)), length(unique(bugs.subs6$Code)), length(speciesID.subs)))
+dimnames(array2)=list( unique(bugs.subs6$Code), unique(bugs.subs6$Code),speciesID.subs )
+
+array2[,,43]
+
+```
+
+# The mean synchrony across LB10 sites based on simple correlation across populations from species occurring > 6 streams
+```{r}
+mean_spp_corr.mat=
+apply(array2, c(1,2), mean, na.rm=T)
+```
+
+```{r fig.width=7}
+#install.packages('corrplot')
+library(corrplot)
+corrplot(round(mean_spp_corr.mat,2), method='color', type='lower', addCoef.col = "black", title = 'Mean pop synchrony (corr)', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+```
+
+
+
+
+# Combine the population synchronies in the list in one long synchronies dataframe
+#*synchronies_spp*
+```{r}
+synchronies_spp=
+rbindlist(spp.list.corr)
+
+synchronies_spp=
+synchronies_spp %>% 
+  filter(synch != 1)
+```
+# add the stream distances
+```{r}
+synchronies_spp$dist=dist.pairs$dist[match(synchronies_spp$site.pair, dist.pairs$site_pairs)]
+```
+
+# add species trait specialization as of Ecology paper
+```{r}
+synchronies_spp$mean.spec=sp.mean.spec$mean_specializ[match(synchronies_spp$Species, sp.mean.spec$species.names)]
+```
+
+
+
+#Plot the population synchrony decay with distance. Using simple correlation of species occurring in >6 streams
+```{r}
+synchronies_spp %>% 
+  ggplot()+aes(dist, synch)+geom_smooth()+theme_bw()+xlab('Geographic distance')+ylab('Population synchrony (cor)')
+
+synchronies_spp %>% 
+  ggplot()+aes(dist, synch)+geom_smooth()+theme_bw()+xlab('Geographic distance')+ylab('Population synchrony (cor)')
+
+```
+
+
+```{r}
+synchronies_spp %>% 
+  ggplot()+aes(dist, synch)+geom_smooth()+theme_bw()+geom_point(aes(col=Species), alpha=0.2)+theme(legend.position = 'none')+
+  ylab('Population synchrony (corr)')
+  
+  geom_smooth(aes(col=Species),method='lm', se=F, alpha=0.2)+theme(legend.position = 'none')
+  
+synchronies_spp %>% 
+  ggplot()+aes(dist, synch)+geom_smooth()+theme_bw()+theme(legend.position = 'none')+
+  ylab('Population synchrony (corr)')
+  
+  geom_smooth(aes(col=Species),method='lm', se=F, alpha=0.2)+theme(legend.position = 'none')
+  
+    
+  
+```
+
+# Add the columns of 'from' and 'to' in the synchronies_spp df
+```{r}
+
+synchronies_spp=cbind(synchronies_spp,
+colsplit(synchronies_spp$site.pair, ':', c('from', 'to'))
+                     )
+```
+# Add the chemical distance (derived in the 'Env.data' script) to the species synchrony df
+```{r}
+synchronies_spp$chem_dist=synchronies.df$chem.dist[match(synchronies_spp$site.pair, synchronies.df$site.pair2)]
+
+#ad the chemical summer synch
+synchronies_spp$chem_synch.s=synchronies.df$synch.s [match(synchronies_spp$site.pair, synchronies.df$site.pair2)]
+
+# add the chamical winter synch
+synchronies_spp$chem_synch.w=synchronies.df$synch.w [match(synchronies_spp$site.pair, synchronies.df$site.pair2)]
+
+```
+
+
+
+
+# Plot the mean populations synchrony vs chemical distance...
+```{r}
+synchronies_spp %>% 
+  ggplot()+aes(chem_dist, synch)+geom_smooth()+theme_bw()+
+  geom_point(aes(col=Species), alpha=0.2)+theme(legend.position = 'none')+
+  ylab('Population synchrony (corr)')
+```
+
+
+# Plot the mean populations synchrony vs chemical synchr...
+*no apparent relation between simple population synch and chemical (PC1) simple synchrony*
+```{r}
+synchronies_spp %>% 
+  ggplot()+aes(chem_synch.s, synch)+geom_smooth()+theme_bw()+
+  geom_point(aes(col=Species), alpha=0.2)+theme(legend.position = 'none')+
+  ylab('Population synchrony (corr)')
+
+synchronies_spp %>% 
+  ggplot()+aes(chem_synch.w, synch)+geom_smooth()+theme_bw()+
+  geom_point(aes(col=Species), alpha=0.2)+theme(legend.position = 'none')+
+  ylab('Population synchrony (corr)')
+
+
+synchronies_spp %>% 
+  ggplot()+aes(chem_synch.s, synch)+geom_smooth()+theme_bw()+
+  theme(legend.position = 'none')+
+  ylab('Population synchrony (corr)')
+
+synchronies_spp %>% 
+  ggplot()+aes(chem_synch.w, synch)+geom_smooth()+theme_bw()+
+  theme(legend.position = 'none')+
+  ylab('Population synchrony (corr)')
+
+
+```
+
+
+
+#######################################
+## Imputation of missing species data
+###########################
+
+
+# Look at the subsetted LB10 data 
+```{r}
+
+
+bugs.imp=
+ cbind(bugs %>%
+        filter(!year %in% c('1981', '1982')) %>% # excluding these years
+        filter(!Code %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% # excluding these sites
+        select(Code,year) ,
+
+bugs %>% 
+        filter(!year %in% c('1981', '1982')) %>%
+        filter(!Code %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% 
+        select( names(spp_site_occur[spp_site_occur>6]))
+)
+```
+# Which sites in LB10?
+```{r}
+site.occur %>% 
+  as.data.frame() %>% 
+  filter(!Var2 %in% c('1981', '1982')) %>%
+  filter(!Var1 %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% 
+ ggplot()+aes(Var2, Var1)+geom_tile(col='grey40',aes(fill=as.factor(Freq)))+theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+ ggtitle('LB10 most complete')+theme(legend.position = 'none')+xlab(NULL)+ylab(NULL)
+```
+
+
+```{r}
+install.packages('imputeTS')
+library(imputeTS)
+
+install.packages('zoo')
+library(zoo)
+```
+
+# function to convert NAs to mean , or to median
+```{r}
+NA2mean=function(x){
+  x[which(is.na(x)==T)]=mean(x, na.rm=T)
+  return(x)
+}
+
+# this works and the most simple
+NA2median=function(x){
+  x[which(is.na(x)==T)]=median(x, na.rm=T)
+  return(x)
+}
+
+
+
+
+
+NA2mean(c(1,1,1,4,4,NA))
+NA2median(c(1,1,1,4,4,NA))
+```
+
+
+# Function that uses the *imputeTS::na_ma function* to get the moving average mean for missing values (using floor to convert <1 to zeros)
+```{r}
+NA2ma=function(x){
+  x=floor(imputeTS::na_ma(x, 4, weighting='simple'))
+  return(x)
+}
+
+
+NA2ma(c(2,3,5,6,7,81,NA,6,6,6,6))
+```
+
+# or more simply convert the NA to the overall mean of the spp
+*however this creates equal assembly for any missing year within a sample*
+*also this tends to make low abundance and many zeros*
+```{r}
+function(x){
+  x[which(is.na(x)==T)]=median(x, na.rm=T)
+  return(x)
+}
+```
+
+
+
+# isolate single site for *imputation for each species*
+# *CI1.subs*
+*imputation using the subset data with spp in >6 sites*
+```{r}
+b.CI1.imp=
+  bugs.imp %>% 
+  filter(Code=='CI1')
+
+b.CI1.imp=# add extra row with missing year and NA for spp abundances
+b.CI1.imp %>% 
+  add_row(Code='CI1', year=1991)
+
+# sort to order by year
+b.CI1.imp=
+b.CI1.imp[order(b.CI1.imp$year),]
+
+
+# impute species as median abundance for the entire time series
+b.CI1.imp=
+  cbind.data.frame(b.CI1.imp[,c(1,2)],
+   apply(b.CI1.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+# just a comparison of the effect of imputing using the overall sp median (make too low imputation)
+zio=
+  cbind.data.frame(b.CI1.subs[,c(1,2)],
+   apply(b.CI1.subs[,-c(1,2)], 2, NA2median)
+  )
+
+```
+
+```{r}
+plot(
+rowSums(decostand(b.CI1.imp[,-c(1,2)], 'pa')), type='l')
+
+
+plot(
+rowSums(decostand(zio[,-c(1,2)], 'pa')), type='l')
+
+```
+
+# CI2 imputation
+*this site is missing 1991 (as all sites) and 2009 , 2011*
+```{r}
+b.CI2.imp=
+  bugs.imp %>% 
+  filter(Code=='CI2')
+
+b.CI2.imp=# add extra row with missing year and NA for spp abundances
+b.CI2.imp %>% 
+  add_row(Code='CI2', year=1991)
+
+b.CI2.imp=# add extra row with missing year and NA for spp abundances
+b.CI2.imp %>% 
+  add_row(Code='CI2', year=2009)
+
+b.CI2.imp=# add extra row with missing year and NA for spp abundances
+b.CI2.imp %>% 
+  add_row(Code='CI2', year=2011)
+
+
+# sort to order by year
+b.CI2.imp=
+b.CI2.imp[order(b.CI2.imp$year),]
+
+
+# impute species as median abundance for the entire time series
+b.CI2.imp=
+  cbind.data.frame(b.CI2.imp[,c(1,2)],
+   apply(b.CI2.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(
+rowSums(decostand(b.CI2.imp[,-c(1,2)], 'pa')), type='l')
+
+
+```
+
+#CI4 imputation
+*site is missing only 1991*
+```{r}
+b.CI4.imp=
+  bugs.imp %>% 
+  filter(Code=='CI4')
+
+b.CI4.imp=# add extra row with missing year and NA for spp abundances
+b.CI4.imp %>% 
+  add_row(Code='CI4', year=1991)
+
+# sort to order by year
+b.CI4.imp=
+b.CI4.imp[order(b.CI4.imp$year),]
+
+
+# impute species as median abundance for the entire time series
+b.CI4.imp=
+  cbind.data.frame(b.CI4.imp[,c(1,2)],
+   apply(b.CI4.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(
+rowSums(decostand(b.CI4.imp[,-c(1,2)], 'pa')), type='l')
+
+
+```
+
+#CI5 imputation
+*site is missing only 1991, 2009, 2011*
+```{r}
+b.CI5.imp=
+  bugs.imp %>% 
+  filter(Code=='CI5')
+
+b.CI5.imp=# add extra row with missing year and NA for spp abundances
+b.CI5.imp %>% 
+  add_row(Code='CI5', year=1991)
+
+
+b.CI5.imp=# add extra row with missing year and NA for spp abundances
+b.CI5.imp %>% 
+  add_row(Code='CI5', year=2009)
+
+b.CI5.imp=# add extra row with missing year and NA for spp abundances
+b.CI5.imp %>% 
+  add_row(Code='CI5', year=2011)
+
+
+# sort to order by year
+b.CI5.imp=
+b.CI5.imp[order(b.CI5.imp$year),]
+
+
+# impute species as median abundance for the entire time series
+b.CI5.imp=
+  cbind.data.frame(b.CI5.imp[,c(1,2)],
+   apply(b.CI5.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.CI5.imp$year,
+rowSums(decostand(b.CI5.imp[,-c(1,2)], 'pa')), type='l')
+
+
+```
+
+
+
+# Impute LI1 *only 1991 missing*
+
+```{r}
+b.LI1.imp=
+  bugs.imp %>% 
+  filter(Code=='LI1')
+
+b.LI1.imp=# add extra row with missing year and NA for spp abundances
+b.LI1.imp %>% 
+  add_row(Code='LI1', year=1991)
+
+# sort to order by year
+b.LI1.imp=
+b.LI1.imp[order(b.LI1.imp$year),]
+
+# impute species as median abundance for the entire time series
+b.LI1.imp=
+  cbind.data.frame(b.LI1.imp[,c(1,2)],
+   apply(b.LI1.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.LI1.imp$year,
+rowSums(decostand(b.LI1.imp[,-c(1,2)], 'pa')), type='l')
+
+```
+
+
+# Impute LI2 *only 1991 missing*
+
+```{r}
+b.LI2.imp=
+  bugs.imp %>% 
+  filter(Code=='LI2')
+
+b.LI2.imp=# add extra row with missing year and NA for spp abundances
+b.LI2.imp %>% 
+  add_row(Code='LI2', year=1991)
+
+# sort to order by year
+b.LI2.imp=
+b.LI2.imp[order(b.LI2.imp$year),]
+
+# impute species as median abundance for the entire time series
+b.LI2.imp=
+  cbind.data.frame(b.LI2.imp[,c(1,2)],
+   apply(b.LI2.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.LI2.imp$year,
+rowSums(decostand(b.LI2.imp[,-c(1,2)], 'pa')), type='l')
+
+```
+
+
+# Impute LI4 *missing 1991, 2008, 2009, 20011*
+
+```{r}
+b.LI4.imp=
+  bugs.imp %>% 
+  filter(Code=='LI4')
+
+b.LI4.imp=# add extra row with missing year and NA for spp abundances
+b.LI4.imp %>% 
+  add_row(Code='LI4', year=1991)
+
+b.LI4.imp=# add extra row with missing year and NA for spp abundances
+b.LI4.imp %>% 
+  add_row(Code='LI4', year=2008)
+
+b.LI4.imp=# add extra row with missing year and NA for spp abundances
+b.LI4.imp %>% 
+  add_row(Code='LI4', year=2009)
+
+b.LI4.imp=# add extra row with missing year and NA for spp abundances
+b.LI4.imp %>% 
+  add_row(Code='LI4', year=2011)
+
+
+# sort to order by year
+b.LI4.imp=
+b.LI4.imp[order(b.LI4.imp$year),]
+
+# impute species as median abundance for the entire time series
+b.LI4.imp=
+  cbind.data.frame(b.LI4.imp[,c(1,2)],
+   apply(b.LI4.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.LI4.imp$year,
+rowSums(decostand(b.LI4.imp[,-c(1,2)], 'pa')), type='l')
+
+```
+
+
+
+# Impute LI6 *missing 1991, 1994*
+
+```{r}
+b.LI6.imp=
+  bugs.imp %>% 
+  filter(Code=='LI6')
+
+b.LI6.imp=# add extra row with missing year and NA for spp abundances
+b.LI6.imp %>% 
+  add_row(Code='LI6', year=1991)
+
+b.LI6.imp=# add extra row with missing year and NA for spp abundances
+b.LI6.imp %>% 
+  add_row(Code='LI6', year=1994)
+
+
+# sort to order by year
+b.LI6.imp=
+b.LI6.imp[order(b.LI6.imp$year),]
+
+# impute species as median abundance for the entire time series
+b.LI6.imp=
+  cbind.data.frame(b.LI6.imp[,c(1,2)],
+   apply(b.LI6.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.LI6.imp$year,
+rowSums(decostand(b.LI6.imp[,-c(1,2)], 'pa')), type='l')
+
+```
+
+
+# Impute LI7 *missing 1991, 1994*
+
+```{r}
+b.LI7.imp=
+  bugs.imp %>% 
+  filter(Code=='LI7')
+
+b.LI7.imp=# add extra row with missing year and NA for spp abundances
+b.LI7.imp %>% 
+  add_row(Code='LI7', year=1991)
+
+b.LI7.imp=# add extra row with missing year and NA for spp abundances
+b.LI7.imp %>% 
+  add_row(Code='LI7', year=1994)
+
+
+# sort to order by year
+b.LI7.imp=
+b.LI7.imp[order(b.LI7.imp$year),]
+
+# impute species as median abundance for the entire time series
+b.LI7.imp=
+  cbind.data.frame(b.LI7.imp[,c(1,2)],
+   apply(b.LI7.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.LI7.imp$year,
+rowSums(decostand(b.LI7.imp[,-c(1,2)], 'pa')), type='l')
+
+```
+
+
+
+# Impute LI8 *missing 1991, 1994, 2011*
+
+```{r}
+b.LI8.imp=
+  bugs.imp %>% 
+  filter(Code=='LI8')
+
+b.LI8.imp=# add extra row with missing year and NA for spp abundances
+b.LI8.imp %>% 
+  add_row(Code='LI8', year=1991)
+
+b.LI8.imp=# add extra row with missing year and NA for spp abundances
+b.LI8.imp %>% 
+  add_row(Code='LI8', year=1994)
+
+
+b.LI8.imp=# add extra row with missing year and NA for spp abundances
+b.LI8.imp %>% 
+  add_row(Code='LI8', year=2011)
+
+
+
+# sort to order by year
+b.LI8.imp=
+b.LI8.imp[order(b.LI8.imp$year),]
+
+# impute species as median abundance for the entire time series
+b.LI8.imp=
+  cbind.data.frame(b.LI8.imp[,c(1,2)],
+   apply(b.LI8.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.LI8.imp$year,
+rowSums(decostand(b.LI8.imp[,-c(1,2)], 'pa')), type='l')
+
+```
+
+
+## RBIND all imputed sites into one combined df
+*this LB10.imp, includes spp observed in >6 streams, to allow analysis of synchrony using wavelet methods*
+
+```{r}
+LB10.imp=rbind.data.frame(b.CI1.imp, b.CI2.imp, b.CI4.imp, b.CI5.imp, b.LI1.imp, b.LI2.imp, b.LI4.imp,
+                          b.LI6.imp, b.LI7.imp, b.LI8.imp)
+
+rownames(LB10.imp)=paste(LB10.imp$Code, LB10.imp$year, sep="_")
+```
+
+
+# Before jumping into the wavelet method, let's see how imputing influence the overall mean pop synchrony
+
+# Create a vector with species identity for the reduced df with 10 streams and no holes
+```{r}
+speciesID.imp=
+colnames(LB10.imp[,-c(1,2)])
+```
+
+# The list of *species synchrony imputed* for each species between each stream in the reduced set of sites (LB10.imp). Based on simple correlation
+```{r}
+spp.list.corr.imp<-list()
+
+for(spp in 1:length(speciesID.imp)) {
+  spp.list.corr.imp[[spp]]= 
+  #speciesID.subs=as.factor(names(spp_site_occur[spp_site_occur>6]))
+  
+  sppcorr=
+  LB10.imp %>% 
+  select(Code, year, speciesID.imp[spp]) %>%  
+  spread(Code, value=speciesID.imp[spp]) %>% select(-year) %>% 
+  cor(method='spearman') %>% 
+  gdata::unmatrix() %>% 
+  data.frame() %>% 
+  cbind(rep(speciesID.imp[spp], 1 )) %>% 
+    cbind(row.names(.)) %>% 
+  `colnames<-`(c('synch.imp', 'Species','site.pair'))# use this function: `colnames<-` to assign column names within a pipe
+    }
+  
+
+spp.list.corr[[12]]
+
+```
+
+# Create a list similar to spp.list.corr but as simple correlation matrix. Used for calculating the mean across species.
+
+```{r}
+list2.imp<-list()
+
+for(spp in 1:length(speciesID.imp)) {
+  list2.imp[[spp]]= 
+  #speciesID.subs=as.factor(names(spp_site_occur[spp_site_occur>6]))
+  
+  sppcorr=
+  LB10.imp %>% 
+  select(Code, year, speciesID.imp[spp]) %>%  
+  spread(Code, value=speciesID.imp[spp]) %>% select(-year) %>% 
+  cor(method='spearman')
+}
+
+list2.imp[41]
+```
+
+# Derive the mean synchrony across sites based on the mean synchrony of species in LB10 imputed missing years
+```{r}
+array2.imp=array(as.numeric(unlist(list2.imp)), dim=c(length(unique(LB10.imp$Code)), length(unique(LB10.imp$Code)), length(speciesID.imp)))
+dimnames(array2.imp)=list( unique(LB10.imp$Code), unique(LB10.imp$Code),speciesID.imp )
+
+array2.imp[,,43]
+
+```
+
+# The mean synchrony across LB10 imputed sites based on simple correlation across populations from species occurring > 6 streams
+```{r}
+mean_spp_corr.mat.imp=
+apply(array2.imp, c(1,2), mean, na.rm=T)
+```
+
+# *Plotting the man pop synchrony with imputated years shows no effect of imputation, if anything, overall synch values seems lower!*
+```{r fig.width=7}
+#library(corrplot)
+corrplot(round(mean_spp_corr.mat.imp,2), method='color', type='lower', addCoef.col = "black", title = 'Mean pop synchrony (corr-imputed)', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+```
+
+
+
+
+
+
+
+
+#################################################################################
+# Wish to derive some *dynamic metrics* regarding changes in composition *ext-imm, rank shift etc.* 
+These metrics however reflect a delta so there is T-1 years available (if T = all years)
+
+
+# create a vector of year for lb10 imputed
+```{r}
+yearID.lb10=as.factor(unique(LB10.imp$year))
+```
+# create a vector of delta year-to-year
+```{r}
+deltamat=matrix(nrow=33, ncol=1)
+```
+
+```{r}
+for (delta in 1:length(yearID.lb10-1)){
+  deltamat[delta,]=paste(yearID.lb10[delta], yearID.lb10[delta+1], sep='_')
+}
+```
+
+# the for loop to get TBI values for each year-to-year variation
+```{r}
+
+mylist=list()
+
+for (delta in 1:length(yearID.lb10-1)) {
+  mylist[[delta]] =TBI(LB10.imp %>% filter(year==yearID.lb10[delta]) %>% select(-c(1,2)) ,
+                                              LB10.imp %>% filter(year==yearID.lb10[delta+1]) %>% select(-c(1,2)), test.BC = F, nperm = 0)$BCD.mat
+}
+
+mylist[[33]][,1]
+
+```
+
+# extract the TBI metrics for each site
+
+```{r}
+lb10.TBI=
+cbind.data.frame(deltas=deltamat[,1],
+      site=rep(unique(LB10.imp$Code), 33),
+rbindlist(mylist)
+)
+```
+
+# Repeat the process for presence/absence data to get proper ext-imm dynamics
+```{r}
+#lb10.imp for incidence data
+LB10.imp.pa=
+  cbind(LB10.imp[,c(1,2)],
+        decostand(LB10.imp[,-c(1,2)], 'pa')
+  )
+```
+
+# loop over each delta for the TBI on incidence data
+```{r}
+
+mylist2=list()
+
+for (delta in 1:length(yearID.lb10-1)) {
+  mylist2[[delta]] =TBI(LB10.imp.pa %>% filter(year==yearID.lb10[delta]) %>% select(-c(1,2)) ,
+                                              LB10.imp.pa %>% filter(year==yearID.lb10[delta+1]) %>% select(-c(1,2)), test.BC = F, nperm = 0)$BCD.mat
+}
+
+mylist2[[1]]
+```
+# extract the TBI metrics for each site based on incidence data (ext-imm)
+
+```{r}
+lb10.TBI.pa=
+cbind.data.frame(deltas=deltamat[,1],
+      site=rep(unique(LB10.imp$Code), 33),
+rbindlist(mylist2)
+)
+```
+
+
+# extract the *losses and gains from TBI* into a df to feed the wsyn::synmat function, or any synchrony metrics that we need 
+
+#first create a siteID vector
+```{r}
+lb10.siteID=as.factor(unique(LB10.imp$Code))
+```
+
+# TBI.loss (abund based)
+```{r}
+TBI.loss=as.data.frame(matrix(nrow = 10, ncol=33))
+rownames(TBI.loss)=unique(LB10.imp$Code)
+names(TBI.loss)=deltamat
+TBI.loss
+
+for(s in 1:length(lb10.siteID)){
+  TBI.loss[s,]=lb10.TBI %>% filter(site==lb10.siteID[s]) %>% pull(3)
+}
+
+```
+
+# TBI.gain (abund based)
+```{r}
+TBI.gain=as.data.frame(matrix(nrow = 10, ncol=33))
+rownames(TBI.gain)=unique(LB10.imp$Code)
+names(TBI.gain)=deltamat
+TBI.gain
+
+for(s in 1:length(lb10.siteID)){
+  TBI.gain[s,]=lb10.TBI %>% filter(site==lb10.siteID[s]) %>% pull(4)
+}
+
+```
+
+
+# TBI.braycurtis (*abund based, overall*)
+```{r}
+TBI.bc=as.data.frame(matrix(nrow = 10, ncol=33))
+rownames(TBI.bc)=unique(LB10.imp$Code)
+names(TBI.bc)=deltamat
+TBI.bc
+
+for(s in 1:length(lb10.siteID)){
+  TBI.bc[s,]=lb10.TBI %>% filter(site==lb10.siteID[s]) %>% pull(5)
+}
+
+```
+
+
+# TBI.loss (incidence based) *ext-imm*
+```{r}
+TBI.loss.pa=as.data.frame(matrix(nrow = 10, ncol=33))
+rownames(TBI.loss.pa)=unique(LB10.imp$Code)
+names(TBI.loss.pa)=deltamat
+TBI.loss.pa
+
+for(s in 1:length(lb10.siteID)){
+  TBI.loss.pa[s,]=lb10.TBI.pa %>% filter(site==lb10.siteID[s]) %>% pull(3)
+}
+
+```
+
+# TBI.gain (incidence based) *ext-imm*
+```{r}
+TBI.gain.pa=as.data.frame(matrix(nrow = 10, ncol=33))
+rownames(TBI.gain.pa)=unique(LB10.imp$Code)
+names(TBI.gain.pa)=deltamat
+TBI.gain.pa
+
+for(s in 1:length(lb10.siteID)){
+  TBI.gain.pa[s,]=lb10.TBI.pa %>% filter(site==lb10.siteID[s]) %>% pull(4)
+}
+
+```
+
+# TBI.jaccard (incidence based) *ext-imm overall*
+```{r}
+TBI.jac.pa=as.data.frame(matrix(nrow = 10, ncol=33))
+rownames(TBI.jac.pa)=unique(LB10.imp$Code)
+names(TBI.jac.pa)=deltamat
+TBI.jac.pa
+
+for(s in 1:length(lb10.siteID)){
+  TBI.jac.pa[s,]=lb10.TBI.pa %>% filter(site==lb10.siteID[s]) %>% pull(5)
+}
+
+```
+
+
+
+
+# Create a time factor reflecting the deltas for lb10.imp
+```{r}
+time.delta=c(1986:2018)
+```
+
+# clean data for the TBI.loss timeseries (wsyn)
+```{r}
+t_TBI.loss=wsyn::cleandat(as.matrix(TBI.loss), (time.delta), clev=4)$cdat
+```
+
+# plot TBI.loss for each site to visualise
+```{r fig.height=5}
+plot((time.delta), t_TBI.loss[1,]/6+1, ylim=c(0,11), type='o', yaxt = "n", ylab='TBI.loss', xlab='')
+axis(2, at= c(1:10),  labels=c("CI1", "CI2", "CI4", "CI5" ,"LI1", "LI2", "LI4", "LI6", "LI7", "LI8"))
+for(stream in 2:dim(t_TBI.loss)[1]){
+  lines((time.delta), t_TBI.loss[stream,]/6+stream, type='o')
+}
+```
+
+
+# *Wavelet pahsor mean field for TBI  metrics*
+
+#TBI.loss
+*showing some correlation at the 4-6 timescales*
+```{r}
+phas_TBI.loss=wsyn::wpmf(t_TBI.loss,(time.delta) , sigmethod = 'quick')
+plotmag(phas_TBI.loss, title='Wavelet phasor mean filed - TBI.loss')
+```
+
+
+# clean data for the TBI.gain timeseries (wsyn)
+```{r}
+t_TBI.gain=wsyn::cleandat(as.matrix(TBI.gain), (time.delta), clev=4)$cdat
+```
+
+
+# Wpahsor mean field for TBI gains
+*also strong corr patterns at 4-6 time scale*
+```{r}
+phas_TBI.gain=wsyn::wpmf(t_TBI.gain,(time.delta) , sigmethod = 'quick')
+plotmag(phas_TBI.gain, title='Wavelet phasor mean filed - TBI.gain')
+```
+
+
+
+# clean data for the TBI.braycurtis timeseries (wsyn)
+```{r}
+t_TBI.bc=wsyn::cleandat(as.matrix(TBI.bc), (time.delta), clev=4)$cdat
+```
+
+
+#Wavelet pahsor mean field for TBI bray-curtis overall
+*TBI bray curtis shows strong synch early on (similar to immigration incidence based)*
+```{r}
+phas_TBI.bc=wsyn::wpmf(t_TBI.bc,(time.delta) , sigmethod = 'quick')
+plotmag(phas_TBI.bc, title='Wavelet phasor mean filed - TBI.Bray-Curtis')
+```
+
+
+
+
+# clean data for the TBI.loss.pa *(ext-imm) timeseries (wsyn)*
+```{r}
+t_TBI.loss.pa=wsyn::cleandat(as.matrix(TBI.loss.pa), (time.delta), clev=4)$cdat
+```
+
+Wpahsor mean field for TBI loss.pa
+*Extinctions (TBI incidence) shows different patterns, with strong synch early on*
+```{r}
+phas_TBI.loss.pa=wsyn::wpmf(t_TBI.loss.pa,(time.delta) , sigmethod = 'quick')
+plotmag(phas_TBI.loss.pa, title='Wavelet phasor mean filed - TBI.loss.pa')
+```
+
+
+# clean data for the TBI.gain.pa *(ext-imm)* timeseries (wsyn)
+```{r}
+t_TBI.gain.pa=wsyn::cleandat(as.matrix(TBI.gain.pa), (time.delta), clev=4)$cdat
+```
+
+Wpahsor mean field for TBI gain.pa
+*showing some correlation at the 4-6 timescales*
+```{r}
+phas_TBI.gain.pa=wsyn::wpmf(t_TBI.gain.pa,(time.delta) , sigmethod = 'quick')
+plotmag(phas_TBI.gain.pa, title='Wavelet phasor mean filed - TBI.gain.pa')
+```
+
+
+
+# clean data for the TBI.jaccard overall
+```{r}
+t_TBI.jac.pa=wsyn::cleandat(as.matrix(TBI.jac.pa), (time.delta), clev=4)$cdat
+```
+
+
+# Wpahsor mean field for TBI jaccard overall
+*also strong synchr in jaccard early on in timeseries*
+```{r}
+phas_TBI.jac=wsyn::wpmf(t_TBI.jac.pa,(time.delta) , sigmethod = 'quick')
+plotmag(phas_TBI.jac, title='Wavelet phasor mean filed - TBI.Jaccard')
+```
+
+
+###############################################
+#### Simple *coherence test* between NOAw and TBI metrics
+
+```{r}
+deltamat[,1]
+
+# this is the timeframe of winter NAO matchin the delta year-to-year TBI metrics
+ts.NAOw$cdat[6:37]
+timesNAOw[6:38]
+```
+
+
