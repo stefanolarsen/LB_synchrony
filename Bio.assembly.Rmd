@@ -1,0 +1,754 @@
+---
+title: "bio_assembly"
+author: "Stefano Larsen"
+date: "10/7/2021"
+output: html_document
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 6)
+```
+
+
+```{r}
+#library(readxl)
+library(tidyverse)
+library(reshape2)
+library(ggrepel)
+library(vegan)
+library(iCAMP)
+install.packages('NST')
+library(NST)
+library(data.table)
+library(patchwork)
+```
+
+# Run the Sloan neutral model to assess fit and m for each year across LB10 (imputed)
+```{r}
+snm85=
+snm(
+LB10.imp %>% filter(year=='1985') %>% select(-c(1,2)), simplify = F)$stats
+
+snm85$stats
+```
+
+
+
+#plot for fun
+```{r}
+snm85$detail %>% 
+  ggplot()+aes(log(p), freq)+geom_point(aes(col=type), alpha=.5)+
+  geom_path(aes(log(p), freq.pred), col='grey30')+
+  geom_path(aes(log(p), pred.lwr),linetype='dashed', col='grey30')+
+  geom_path(aes(log(p), pred.upr),linetype='dashed', col='grey30')
+  
+  
+```
+# Run the Sloan neutral model on each year fillin a list (keeping the fit parameters)
+```{r}
+snm.list=list()
+
+for(y in 1: length(yearID.lb10)){
+  snm.list[[y]]=snm(LB10.imp %>% filter(year==yearID.lb10[y]) %>% select(-c(1,2)), simplify = F)$stats
+}
+
+snm.list[[3]]
+
+```
+
+# Run the Sloan neutral model on each year fillin a list (keeping the details only)
+```{r}
+snm.detail.list=list()
+
+for(y in 1: length(yearID.lb10)){
+  snm.detail.list[[y]]=snm(LB10.imp %>% filter(year==yearID.lb10[y]) %>% select(-c(1,2)), simplify = F)$detail
+}
+
+
+
+```
+
+# plotting the neutral fit from the list
+```{r}
+snm.detail.list[[28]] %>% 
+  ggplot()+aes(log(p), freq)+geom_point(aes(col=type), alpha=.9)+
+  geom_path(aes(log(p), freq.pred), col='grey30')+
+  geom_path(aes(log(p), pred.lwr),linetype='dashed', col='grey30')+
+  geom_path(aes(log(p), pred.upr),linetype='dashed', col='grey30')
+```
+
+
+
+
+# create a df holding each year neutral model fits
+```{r}
+neut.fit=cbind.data.frame(year=yearID.lb10,
+rbindlist(snm.list))
+```
+```{r}
+neut.fit %>% 
+  ggplot()+aes(AIC, AIC.bino, label=year)+geom_label()+geom_point()+geom_abline(slope=1)
+```
+
+
+# extract the *neutral species types*, for counting the freq of classification for each spp
+```{r}
+neut.spp.type=
+ cbind(Species=unlist(lapply(snm.detail.list, rownames)),# extract the rownames from list (ie species id)
+      rbindlist(snm.detail.list), #rbind the neutral fit detail
+      year=rep(yearID.lb10, lapply(lapply(snm.detail.list, rownames), length)))  # add (cbind) the year by repeating each y for each spp
+      
+
+rep(yearID.lb10, lapply(lapply(snm.detail.list, rownames), length))
+  
+
+
+table(neut.spp.type$Species, neut.spp.type$type)
+
+```
+
+# Add the temperature zonation to the neutral species types
+# derive the neutral type for each temp group
+```{r}
+neut.spp.type$temp_zon=mean_spp_temp_zon$quant_temp[match(neut.spp.type$Species, rownames(mean_spp_temp_zon))]
+
+tmp=
+table(neut.spp.type$year, neut.spp.type$type, neut.spp.type$temp_zon)
+
+table(neut.spp.type$type, neut.spp.type$temp_zon)
+
+
+neutral.cold=
+tmp[,,1] %>%
+  as.matrix() 
+
+
+neutral.medium=
+tmp[,,2] %>%
+  as.matrix() 
+
+neutral.warm=
+  tmp[,,3] %>%
+  as.matrix() 
+
+
+```
+
+
+
+```{r fig.width=5}
+cbind.data.frame(above=neutral.cold[,1], 
+                 below=neutral.cold[,2],
+                 neutral=neutral.cold[,3]) %>% 
+  mutate(totab=rowSums(.), year=yearID) %>% 
+  ggplot()+aes(year, below/totab, group=1)+geom_path()+geom_smooth()+
+  theme(axis.text.x = element_text(angle=45, hjust=1))
+
+cbind.data.frame(above=neutral.cold[,1], 
+                 below=neutral.cold[,2],
+                 neutral=neutral.cold[,3]) %>% 
+  mutate(totab=rowSums(.), year=yearID) %>% 
+  ggplot()+aes(year, above/totab, group=1)+geom_path()+geom_smooth()+
+  theme(axis.text.x = element_text(angle=45, hjust=1))
+
+
+cbind.data.frame(above=neutral.cold[,1], 
+                 below=neutral.cold[,2],
+                 neutral=neutral.cold[,3]) %>% 
+  mutate(totab=rowSums(.), year=yearID) %>% 
+  ggplot()+aes(year, neutral/totab, group=1)+geom_path()+geom_smooth()
+
+```
+
+
+```{r}
+cbind.data.frame(above=neutral.warm[,1], 
+                 below=neutral.warm[,2],
+                 neutral=neutral.warm[,3]) %>% 
+  mutate(totab=rowSums(.), year=yearID) %>% 
+  ggplot()+aes(year, above/totab, group=1)+geom_path()+geom_smooth()
+
+
+cbind.data.frame(above=neutral.warm[,1], 
+                 below=neutral.warm[,2],
+                 neutral=neutral.warm[,3]) %>% 
+  mutate(totab=rowSums(.), year=yearID) %>% 
+  ggplot()+aes(year, below/totab, group=1)+geom_path()+geom_smooth()
+```
+
+
+
+
+# Plot the timeseries of params from neutral fit
+```{r fig.width=8, fig.height=4}
+neut.fit %>% 
+  ggplot()+aes(as.numeric(as.character(year)), m) + geom_path() +geom_smooth(se=F)+
+
+  neut.fit %>% 
+  ggplot()+aes(as.numeric(as.character(year)), Rsqr) + geom_path() +geom_smooth(se=F)
+
+```
+# which is the winter nao data covering the lb10 imputed ?
+```{r}
+#ts.NAOw$cdat
+NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1985:2018))
+```
+
+# *Some indication that positive NAOw phases lead to smaller R2 for the neutral model (less neutral metacom)*
+```{r}
+cbind.data.frame(wNAO=NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1985:2018)) %>% pull(mean.nao),
+     NeutRsqr=neut.fit$Rsqr, Year=time.lb10) %>% 
+  ggplot()+aes(wNAO, NeutRsqr)+geom_point(aes(col=Year))+geom_smooth(method='lm')+ylab('Fit of neutral model')+scale_color_gradient(high='darkblue', low='gold3')
+
+summary(lm(NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1985:2018)) %>% pull(mean.nao)~
+     neut.fit$Rsqr  ))
+
+
+# No effect of smooth nao
+cbind.data.frame(wNAOsmooth=smoothNAOw  %>% filter(winter.year %in% c(1985:2018)) %>% pull(sNAO),
+     NeutRsqr=neut.fit$Rsqr, Year=time.lb10) %>% 
+  ggplot()+aes(wNAOsmooth, NeutRsqr)+geom_point(aes(col=Year))+geom_smooth(method='lm')+ylab('Fit of neutral model')+scale_color_gradient(high='darkblue', low='gold3')
+
+
+
+```
+
+
+# explore wavelet from the neutral model params
+
+```{r}
+t_neut.fit.m=cleandat(neut.fit$m, times= as.numeric(as.character(neut.fit$year)), clev=4)$cdat
+
+t_neut.fit.r2=cleandat(neut.fit$Rsqr, times= as.numeric(as.character(neut.fit$year)), clev=4)$cdat
+```
+
+# Plot WT from the m parameter in neutral fit
+```{r}
+plotmag(wt(t_neut.fit.m, times=as.numeric(as.character(neut.fit$year))), title='Wavelet transform migr.rate')
+```
+
+```{r}
+plotmag(wt(t_neut.fit.r2, times=as.numeric(as.character(neut.fit$year))), title='Wavelet transform neutral R2')
+```
+
+
+# *Clean NAOw 85-18*
+
+```{r}
+ts.NAOw.85_18=
+cleandat(NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1985:2018)) %>% pull(mean.nao),
+         times=NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1985:2018)) %>% pull(winter.year) %>% as.numeric(),
+         clev=4)$cdat
+```
+
+# Coherence migration rate vs wNAO
+```{r}
+coh.NAOw_neut.m=
+coh(ts.NAOw.85_18, t_neut.fit.m, times= as.numeric(as.character(neut.fit$year)),  
+    norm='powall', sigmethod = 'fast', nrand = 10000)
+```
+
+```{r}
+plotmag(coh.NAOw_neut.m)
+
+coh.NAOw_neut.m=bandtest(coh.NAOw_neut.m, c(4,5))
+coh.NAOw_neut.m=bandtest(coh.NAOw_neut.m, c(6,7))
+
+get_bandp(coh.NAOw_neut.m)
+```
+
+
+
+
+```{r}
+coh.NAOw_neut.r2=
+coh(ts.NAOw.85_18, t_neut.fit.r2, times= as.numeric(as.character(neut.fit$year)),  
+    norm='powall', sigmethod = 'fast', nrand = 10000)
+```
+
+
+# *Winter NAO also shows coherence at 4-6 timescales with R2 from neutral model*
+```{r}
+plotmag(coh.NAOw_neut.r2)
+
+
+coh.NAOw_neut.r2=bandtest(coh.NAOw_neut.r2, c(3,4))
+coh.NAOw_neut.r2=bandtest(coh.NAOw_neut.r2, c(5,6))
+
+get_bandp(coh.NAOw_neut.r2)
+```
+
+
+##### Stochasticity each year
+
+
+```{r}
+cbind.data.frame(Sites=lb10.siteID, type=)
+```
+
+# some test on how to perform the tNST on a loop for each year
+```{r}
+
+zio=
+tNST(comm=LB10.imp %>% filter(year=='1985') %>% select(-c(1,2)) ,
+     dist.method="jaccard",
+     group =data.frame(landuse=c('AcM','AcM', 'AcM','AcM', 'AcF', 'AcF','AcF', 'NeM','NeM','AcF')) %>% 
+            `rownames<-`(LB10.imp %>% filter(year==yearID.lb10[1]) %>% rownames()),
+          abundance.weighted=TRUE, rand=10,
+          nworker=1, null.model="PF", between.group = T,
+          SES=TRUE, RC=TRUE)$index.pair$MST.ij.ruzicka
+
+
+mean(zio$index.pair.grp$MST.ij.ruzicka)
+mean(zio$index.pair$MST.ij.ruzicka)
+
+
+```
+
+
+# get stochasticity each year
+```{r}
+#create empty matrix to hold the mean stochasticity
+tNST.year=as.data.frame(matrix(nrow=34, ncol=2))
+tNST.year[,1]=yearID.lb10
+
+for(y in 1: length(yearID.lb10)){ # loop over years
+  tNST.year[y,2]=
+    mean(tNST(comm=LB10.imp %>% filter(year==yearID.lb10[y]) %>% select(-c(1,2)) , # get the mean of MST.ij
+     dist.method="jaccard",
+     group =data.frame(landuse=c('AcM','AcM', 'AcM','AcM', 'AcF', 'AcF','AcF', 'NeM','NeM','AcF')) %>% # must create a group (such as landuse)
+            `rownames<-`(LB10.imp %>% filter(year==yearID.lb10[y]) %>% rownames()),
+          abundance.weighted=TRUE, rand=200,
+          nworker=1, null.model="PF", between.group = T,
+          SES=TRUE, RC=TRUE)$index.pair$MST.ij.ruzicka)
+}
+
+names(tNST.year)=c('year', 'mean.MST')
+tNST.year$year=as.numeric(as.character(tNST.year$year))
+```
+
+# add the wNAO on the stochasticity df
+```{r}
+tNST.year$wNAO= wNAO=NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1985:2018)) %>% pull(mean.nao)
+
+tNST.year$smoothNAO=smoothNAOw %>% filter (winter.year %in% c(1985:2018) ) %>% pull(sNAO)
+```
+
+
+```{r}
+tNST.year %>% 
+  ggplot()+aes(year, mean.MST)+geom_path()
+
+
+tNST.year %>% 
+  ggplot()+aes(wNAO, mean.MST)+geom_point()+geom_smooth(method='lm')
+
+tNST.year %>% 
+  ggplot()+aes(smoothNAO, mean.MST)+geom_point()+geom_smooth(method='lm')
+
+
+
+```
+
+# wavelet analysis of the stochasticity
+```{r}
+t_MST=cleandat(tNST.year$mean.MST, times= tNST.year$year, clev=4)$cdat
+```
+
+```{r}
+plotmag(wt(t_MST, times=tNST.year$year))
+```
+```{r}
+coh.NAOw_MST=
+coh(ts.NAOw.85_18, t_MST, times= tNST.year$year,  
+    norm='powall', sigmethod = 'fast', nrand = 10000)
+
+coh.NAOw_MST=
+coh(ts.NAOw.85_18, t_MST, times= tNST.year$year,  
+    norm='powall', sigmethod = 'fftsurrog1', nrand = 100)
+
+
+```
+
+```{r}
+plotmag(coh.NAOw_MST)
+coh.NAOw_MST=bandtest(coh.NAOw_MST, c(8,9))
+```
+
+
+
+
+#### Extract the betadiversit ybased on hill numbers to check synchrony in year-to-year variation for rare and commmon spp
+```{r}
+install.packages('hillR')
+library(hillR)
+```
+
+
+# Steps to extract the year-to-year variation
+```{r}
+
+LB10.imp %>% 
+  filter(Code=='LI8') %>% select(-c(1,2)) %>% 
+  `rownames<-`(time.lb10) %>% 
+  hill_taxa_parti_pairwise(q=0) %>% 
+  mutate(year1_year2 = paste(site1, site2, sep='_')) %>% 
+  filter(year1_year2 %in% (deltamat)) %>% 
+  select(TD_beta)
+```
+
+# extract the hillR beta q=0
+```{r}
+hillR_beta=as.data.frame(matrix(nrow=length(time.delta), ncol=3))
+rownames(hillR_beta)=deltamat
+
+for(s in 1:length(lb10.siteID)){
+  hillR_beta[,s]=LB10.imp %>% 
+  filter(Code==lb10.siteID[s]) %>% select(-c(1,2)) %>% 
+  `rownames<-`(time.lb10) %>% 
+  hill_taxa_parti_pairwise(q=0) %>% 
+  mutate(year1_year2 = paste(site1, site2, sep='_')) %>% 
+  filter(year1_year2 %in% (deltamat)) %>% 
+  select(TD_beta)
+}
+
+names(hillR_beta)=lb10.siteID
+
+hillR_beta.q0=hillR_beta
+rm(hillR_beta)
+
+```
+
+# extract hillR beta for q=1
+```{r}
+hillR_beta.q1=as.data.frame(matrix(nrow=length(time.delta), ncol=3))
+rownames(hillR_beta.q1)=deltamat
+
+for(s in 1:length(lb10.siteID)){
+  hillR_beta.q1[,s]=LB10.imp %>% 
+  filter(Code==lb10.siteID[s]) %>% select(-c(1,2)) %>% 
+  `rownames<-`(time.lb10) %>% 
+  hill_taxa_parti_pairwise(q=1) %>% 
+  mutate(year1_year2 = paste(site1, site2, sep='_')) %>% 
+  filter(year1_year2 %in% (deltamat)) %>% 
+  select(TD_beta)
+}
+
+names(hillR_beta.q1)=lb10.siteID
+```
+
+# extract hillR beta for q=2
+```{r}
+hillR_beta.q2=as.data.frame(matrix(nrow=length(time.delta), ncol=3))
+rownames(hillR_beta.q2)=deltamat
+
+for(s in 1:length(lb10.siteID)){
+  hillR_beta.q2[,s]=LB10.imp %>% 
+  filter(Code==lb10.siteID[s]) %>% select(-c(1,2)) %>% 
+  `rownames<-`(time.lb10) %>% 
+  hill_taxa_parti_pairwise(q=2) %>% 
+  mutate(year1_year2 = paste(site1, site2, sep='_')) %>% 
+  filter(year1_year2 %in% (deltamat)) %>% 
+  select(TD_beta)
+}
+
+names(hillR_beta.q2)=lb10.siteID
+```
+
+
+# clean the hillR beta timeseries
+```{r}
+t_hillR_beta.q0=cleandat(t(hillR_beta.q0), times=time.delta, clev=4)$cdat
+t_hillR_beta.q1=cleandat(t(hillR_beta.q1), times=time.delta, clev=4)$cdat
+t_hillR_beta.q2=cleandat(t(hillR_beta.q2), times=time.delta, clev=4)$cdat
+```
+
+# phasor hillR q=0
+*similar to the overall synch in Bray curtis variation, and richness synchrony*
+```{r}
+plotmag(
+  wpmf(t_hillR_beta.q0, times=time.delta, sigmethod = 'quick', nrand = 1000), title='hillR beta q=0'
+)
+```
+
+# phasor hillR q=1
+```{r}
+plotmag(
+  wpmf(t_hillR_beta.q1, times=time.delta, sigmethod = 'quick', nrand = 1000),title='hillR beta q=1'
+)
+```
+# phasor hillR q=2
+```{r}
+plotmag(
+  wpmf(t_hillR_beta.q2, times=time.delta, sigmethod = 'quick', nrand = 1000),title='hillR beta q=2'
+)
+```
+### examine coherence with wNAO
+#*no coherence with wANO for hillR beta q0*
+```{r}
+coh_wNAO_betaq0=
+  coh(t_NAOw_86.18.exp, t_hillR_beta.q0, time.delta,  norm='powall', sigmethod = 'fast', nrand = 10000)
+
+
+plotmag(coh_wNAO_betaq0)
+```
+
+
+```{r}
+coh_wNAO_betaq1=
+  coh(t_NAOw_86.18.exp, t_hillR_beta.q1, time.delta,  norm='powall', sigmethod = 'fast', nrand = 10000)
+
+
+plotmag(coh_wNAO_betaq1)
+```
+# *some coherence between wNAO and hillR beta q=2*
+```{r}
+coh_wNAO_betaq2=
+  coh(t_NAOw_86.18.exp, t_hillR_beta.q2, time.delta,  norm='powall', sigmethod = 'fast', nrand = 10000)
+
+coh_wNAO_betaq2=bandtest(coh_wNAO_betaq2, c(4,5))
+plotmag(coh_wNAO_betaq2)
+```
+
+
+
+```{r}
+cbind(hillR_beta.q0, time.delta,  wNAO=NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1986:2018)) %>% pull(mean.nao)) %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols=c(1:10)) %>% 
+  ggplot()+aes(wNAO, value)+geom_point(aes(col=time.delta))+scale_color_gradient(high='darkblue', low='gold3')+
+  geom_smooth(method='lm')+facet_wrap(~name)
+
+
+cbind(hillR_beta.q2, time.delta,  wNAO=NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1986:2018)) %>% pull(mean.nao)) %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols=c(1:10)) %>% 
+  ggplot()+aes(wNAO, value)+geom_point(aes(col=time.delta))+scale_color_gradient(high='darkblue', low='gold3')+
+  geom_smooth(method='lm')+facet_wrap(~name)
+
+
+```
+
+# Plotting the year-to-year variation based on hill betadiv
+*we see strong effects of some years, especially on beta q=2, the dominant taxa*
+```{r fig.width=9, fig.height=6}
+hillR_beta.q0 %>% 
+  mutate(time.delta=time.delta) %>% 
+  mutate(deltamat=deltamat) %>% 
+  pivot_longer(cols=c(1:10)) %>% 
+  ggplot()+aes(time.delta, value, group=1)+geom_path()+facet_wrap(~name)+theme(axis.text.x = element_text(angle = 90, size=6))+ylab('Beta q=0')
+
+hillR_beta.q2 %>% 
+  mutate(time.delta=time.delta) %>% 
+  mutate(deltamat=deltamat) %>% 
+  pivot_longer(cols=c(1:10)) %>% 
+  ggplot()+aes(time.delta, value, group=1)+geom_path()+facet_wrap(~name)+theme(axis.text.x = element_text(angle = 90, size=6))+ylab('Beta q=2')
+
+```
+
+# *overall the influence of wNAO seems stronger on variation of dominant species rather than rare, as seen from beta q=0 and q=2* 
+```{r}
+cbind.data.frame(Beta.q0.means=rowMeans(hillR_beta.q0), time.delta,  wNAO=NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1986:2018)) %>% pull(mean.nao)) %>% 
+  #as.data.frame() %>% 
+  #pivot_longer(cols=c(1:10)) %>% 
+  ggplot()+aes(wNAO, Beta.q0.means)+geom_point(aes(col=time.delta))+scale_color_gradient(high='darkblue', low='gold3')+
+  geom_smooth(method='lm')
+
+cbind.data.frame(Beta.q1.means=rowMeans(hillR_beta.q1), time.delta,  wNAO=NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1986:2018)) %>% pull(mean.nao)) %>% 
+  #as.data.frame() %>% 
+  #pivot_longer(cols=c(1:10)) %>% 
+  ggplot()+aes(wNAO, Beta.q1.means)+geom_point(aes(col=time.delta))+scale_color_gradient(high='darkblue', low='gold3')+
+  geom_smooth(method='lm')
+
+
+
+cbind.data.frame(Beta.q2.means=rowMeans(hillR_beta.q2), time.delta,  wNAO=NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1986:2018)) %>% pull(mean.nao)) %>% 
+  #as.data.frame() %>% 
+  #pivot_longer(cols=c(1:10)) %>% 
+  ggplot()+aes(wNAO, Beta.q2.means)+geom_point(aes(col=time.delta))+scale_color_gradient(high='darkblue', low='gold3')+
+  geom_smooth(method='lm')
+```
+
+
+
+#################################################################
+#Test with spatial beta-diversity change over each year, using Tatsumi decomposition 
+
+#The ecopart.multi function, from Tatsumi (ecol.lett)
+This function breaks down the contribution of colinization and extirpation year-to-year to the changes in spatial beta at the 
+metacomm level, and whether they lead to homogenization or heterogen of spatial beta
+```{r}
+ecopart.multi <- function(d1, d2, part="two"){
+  part <- match.arg(part, c("two", "four", "sp"))
+  N <- nrow(d1) # Number of sites (communities)
+S <- ncol(d1) # Number of species
+# Delta subscripts (δxyz)
+X <- colSums(d1)
+Y <- colSums(d2)
+Z <- sapply(1:S, function(s) sum(d1[,s]==1 & d2[,s]==1))
+# Whittaker's beta and a scaling factor (H)
+Alpha1 <- mean(rowSums(d1))
+Alpha2 <- mean(rowSums(d2))
+Gamma1 <- sum(colSums(d1) > 0)
+Beta1 <- Gamma1/Alpha1
+H <- Beta1 / ((Alpha2-Alpha1)/Alpha1 + 1)
+# Components of temporal changes in beta diversity (ΔΒ)
+# See Eq. 4 in the main text
+DBeta <- matrix(nrow=4, ncol=S)
+DBeta[1,] <- (X *H/N/Alpha1 - H/Gamma1) * (X>0 & Z==0)
+DBeta[2,] <- (X-Z) *H/N/Alpha1 * (X>Z & Z>0)
+DBeta[3,] <- (-Y *H/N/Alpha1 + H/Gamma1) * (Y>0 & Z==0)
+DBeta[4,] <- (Z-Y) *H/N/Alpha1 * (Y>Z & Z>0)
+# Store ΔΒ in a vector or matrix
+if(part=="two"){
+  Res <- c(sum(DBeta[1:2,]), sum(DBeta[3:4,]))
+  names(Res) <- c("extirpation", "colonisation")
+} else if(part=="four"){
+  Res <- c(sum(DBeta[1, DBeta[1,]<0]),
+           sum(DBeta[1, DBeta[1,]>0]) + sum(DBeta[2,]),
+           sum(DBeta[3, DBeta[3,]>0]),
+           sum(DBeta[3, DBeta[3,]<0]) + sum(DBeta[4,]))
+  names(Res) <- c("ext.hmgn", "ext.htrg", "col.htrg", "col.hmgn")
+} else if(part=="sp"){
+  Res <- rbind(sapply(1:S, function(s) sum(DBeta[1:2, s])),
+               sapply(1:S, function(s) sum(DBeta[3:4, s])))
+  rownames(Res) <- c("extirpation", "colonisation")
+  colnames(Res) <- colnames(d1)
+}
+# Return the vector or matrix
+return(Res)
+}
+```
+
+
+
+# The funciton needs two df from two years
+return four measures of betadiv change, with negative being decline in betadiv (homogeniz)
+```{r}
+y1992=
+LB10.imp %>% 
+  filter(year==1992) %>% select(-c(1,2))
+
+y1993=
+  LB10.imp %>% 
+  filter(year==1993) %>% select(-c(1,2))
+
+ecopart.multi(y1992, y1993, part='four')
+
+```
+
+```{r}
+ecopart.df=
+  as.data.frame(matrix(nrow=length(time.delta), ncol=4))
+ rownames(ecopart.df)=time.delta
+
+ 
+ for(y in 1: length(time.delta)){
+   ecopart.df[y,]=
+     
+     ecopart.multi(LB10.imp %>% filter(year==yearID.lb10[y]) %>% select(-c(1,2)),
+                   LB10.imp %>% filter(year==yearID.lb10[y+1]) %>% select(-c(1,2)), part='four' )
+ }
+ 
+ 
+names(ecopart.df)= c('ext.hmgn',    'ext.htrg'  ,  'col.htrg'   , 'col.hmgn' ) 
+
+ecopart.df$delta.Whittbeta=rowSums(ecopart.df)
+ecopart.df$time.delta=deltamat
+```
+
+```{r fig.width=8}
+ecopart.df %>% 
+  pivot_longer(cols=c(1:5)) %>% 
+  ggplot()+aes(time.delta, value, group=name)+geom_path(aes(col=name), size=1)+theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+  scale_color_manual(values=c('#4F90EE', '#2F60E3', 'grey70', '#E3682F', '#CD480B'))+geom_hline(yintercept = 0, col= 'grey50', linetype='dashed')+  ylab('Change in spatial beta-diversity')+xlab(NULL)
+```
+
+
+
+# this section stems from the LB_trait script, where the trait dist matrix is used to run iCAMP
+
+
+
+# how many missing trait info?
+```{r}
+missing.trt=
+apply(Spp_subs_trt, 1, function(x) sum(is.na(x)))
+```
+
+# derive spp distance matrix based on traits (excluding spp with n missing values)
+```{r}
+trt.dist=
+vegdist(Spp_subs_trt [names(missing.trt[missing.trt< 45]),], na.rm=T)
+
+
+
+sum(is.na(trt.dist))
+
+min(zio)
+max(zio)
+```
+
+```{r}
+library(iCAMP)
+```
+
+
+# select only spp with  valid functional dist values
+```{r}
+xx=LB10.imp %>% select(names(missing.trt[missing.trt< 45]))
+```
+
+# first test with assembly analysis using iCAMP and the trait distance matrix
+# *run the iCAMP 'qpen' over each year*
+```{r}
+icamplist=list()
+
+for(y in 1: length(yearID.lb10)){
+  icamplist[[y]]= qpen(
+LB10.imp %>% filter(year==yearID.lb10[y]) %>% select(names(missing.trt[missing.trt< 45])),
+as.matrix(trt.dist), rand.time = 200)
+}
+
+
+
+```
+
+```{r}
+icamplist[[1]]$ratio
+
+icamplist.ratio=list()
+for(y in 1:34){icamplist.ratio[[y]]=icamplist[[y]]$ratio}
+```
+
+```{r}
+assembly_ratios=
+rbindlist(icamplist.ratio)
+
+assembly_ratios$year=yearID.lb10
+assembly_ratios$wNAO=wNAO
+```
+# *No evident patterns in assembly processes over time or vs NAO*
+```{r}
+assembly_ratios %>% 
+  ggplot()+aes(as.numeric(as.character(year)), Dispersal.Limitation)+geom_smooth()
+
+assembly_ratios %>% 
+  ggplot()+aes(as.numeric(as.character(year)), Homogenizing.Dispersal)+geom_smooth()
+
+
+
+assembly_ratios %>% 
+  ggplot()+aes(wNAO, Dispersal.Limitation)+geom_point()
+
+
+assembly_ratios %>% 
+  ggplot()+aes(wNAO, Undominated)+geom_point()+geom_smooth(method = 'lm')
+
+assembly_ratios %>% 
+  ggplot()+aes(wNAO, Homogenizing.Dispersal)+geom_point()+geom_smooth(method = 'lm')
+```
+
+
