@@ -1,0 +1,1370 @@
+---
+title: "Stability_partit"
+author: "Stefano Larsen"
+date: "10/14/2021"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 6.5)
+```
+
+```{r}
+theme_set(theme_bw())
+```
+
+
+# This script holds some codes for running partition of stability as Wang & Loreau 2019 (Lise's take)
+
+
+# This is the original Wang's code for partitioning
+```{r}
+var.partition <-function(metacomm_tsdata){
+## The function "var.partition" performs the partitioning of variability 
+## across hierarchical levesl within a metacommunity.
+## The input array "metacomm_tsdata" is an N*T*M array. The first dimension represents N species, 
+## the second represents time-series observations of length T, and the third represents M local communities. 
+## The output includes four variability and four synchrony metrics as defined in the main text.
+## Note that, to be able to handle large metacommunities, this code has avoided calculating all covariance.
+
+ts_metacom <-apply(metacomm_tsdata,2,sum,na.rm=T)
+ts_patch <-apply(metacomm_tsdata,c(2,3),sum,na.rm=T)
+ts_species <-apply(metacomm_tsdata,c(1,2),sum,na.rm=T)
+sd_metacom <-sd(ts_metacom,na.rm=T)
+sd_patch_k <-apply(ts_patch,2,sd,na.rm=T)
+sd_species_i <-apply(ts_species,1,sd,na.rm=T)
+sd_species_patch_ik <-apply(metacomm_tsdata,c(1,3),sd,na.rm=T)
+mean_metacom <-mean(ts_metacom,na.rm=T)
+
+CV_S_L <-sum(sd_species_patch_ik,na.rm=T)/mean_metacom  #local-scale average species variability (weighted average of local                                                             population variability across sites and species)
+CV_C_L <-sum(sd_patch_k,na.rm=T)/mean_metacom            #local-scale average community variability (weighted average of community                                                             variability across sites)
+CV_S_R <-sum(sd_species_i,na.rm=T)/mean_metacom          #regional-scale average species variability (weighted average of                                                                       metapopulation variability across species)
+CV_C_R <-sd_metacom/mean_metacom                  #metacommunity variability (CV total metacommunity biomass)
+
+phi_S_L2R <-CV_S_R/CV_S_L  #species-level spatial synchrony (weighted average intraspecific across species)
+phi_C_L2R <-CV_C_R/CV_C_L  #community-level spatial synchrony  (of total community biomass across sites)
+phi_S2C_L <-CV_C_L/CV_S_L  #local-scale species synchrony     (weighted average interspecific across patches)
+phi_S2C_R <-CV_C_R/CV_S_R   #regional-scale species synchrony  (among different meta-populations [sum of covariances                                                                                                           beween species]
+partition_3level <-c(CV_S_L=CV_S_L, CV_C_L=CV_C_L, CV_S_R=CV_S_R, CV_C_R=CV_C_R, phi_S_L2R=phi_S_L2R, phi_C_L2R=phi_C_L2R, phi_S2C_L=phi_S2C_L, phi_S2C_R=phi_S2C_R)
+return(partition_3level)
+}
+```
+
+
+## Convert the bio data into an array to feed the var.partition function. Will use the imputed data this time on LB10
+
+
+
+# gather bugs data in long format -useful for subsequent manipulations
+```{r}
+bugs.long.imp=
+LB10.imp %>% 
+  gather(Species, abund, -c(Code, year))
+```
+
+# code, year and species to factor
+```{r}
+bugs.long.imp$Code=as.factor(bugs.long.imp$Code)
+bugs.long.imp$year=as.factor(bugs.long.imp$year)
+bugs.long.imp$Species=as.factor(bugs.long.imp$Species)
+```
+
+# define the number of years, sites and species overall
+```{r}
+nlevels(bugs.long.imp$year)
+nlevels(bugs.long.imp$Code)
+nlevels(bugs.long.imp$Species)
+```
+
+# create vector keeping year, site and species ID - useful for working in loops
+```{r}
+yearID=sort(unique(bugs.long$year))
+codeID=sort(unique(bugs.long$Code))
+speciesID=sort(unique(bugs.long$Species))
+```
+
+# Create a list keeping matrix of species x year - each spp a timeseries for each stream
+```{r}
+mylist=list()
+```
+
+```{r}
+
+for(code in 1:nlevels(bugs.long.imp$Code)){
+  yearID=sort(unique(bugs.long.imp$year))
+  codeID=sort(unique(bugs.long.imp$Code))
+  speciesID=sort(unique(bugs.long.imp$Species))
+  bugs.long.code=bugs.long.imp[bugs.long.imp$Code==codeID[code],]
+  bugs.long.mat.code=(spread(bugs.long.code[,-1], year, abund, drop=F, fill=0))
+   rownames(bugs.long.mat.code)=bugs.long.mat.code[,1]
+   bugs.long.mat.code[,1]=NULL
+ mylist[[code]]=bugs.long.mat.code
+}
+```
+
+#  see the list
+```{r}
+mylist[[2]]
+```
+
+# Convert the list of species x year (for each stream) into an *ARRAY* with dim = species x years x site
+*this could be useful for the CV stability function of Wang*
+
+```{r}
+myarray=array(as.numeric(unlist(mylist)), dim=c(nlevels(bugs.long.imp$Species), nlevels(bugs.long.imp$year), nlevels(bugs.long.imp$Code)))
+dimnames(myarray)=list(speciesID, yearID, codeID)
+
+myarray[,,1]
+myarray[,,3]
+
+dim(myarray)# 65 species, 34 years, 10 sites (with no holes, i.e. imputed)
+```
+
+
+
+
+
+# *Wang's partition of stability*
+# also cqn be used with moving windo
+```{r}
+res.wang.part=var.partition(myarray)
+
+
+dim(myarray)
+
+var.partition(myarray)
+```
+
+```{r}
+
+
+(res.wang.part[1])*(res.wang.part[7])*(res.wang.part[6])
+
+
+log10(res.wang.part[1]) + log10(res.wang.part[7])+log10(res.wang.part[6])
+
+# equals
+log10(res.wang.part[4])
+```
+
+log(0.7937204)
+
+
+
+#######################
+# Derive for each stream the stability metrics namely community stability and synchrony (codyn)
+```{r}
+stability.metrics=as.data.frame(matrix(ncol=3, nrow=10))
+rownames(stability.metrics)=lb10.siteID
+colnames(stability.metrics)=c('comm.stab', 'synch.loreau', 'sycnh.gross')
+
+```
+
+# Fill the stability metric for each site
+```{r}
+
+# communty stability
+for (s in 1:length(lb10.siteID)){
+stability.metrics[s,1]=
+ LB10.imp %>% 
+  filter(Code==lb10.siteID[s]) %>% 
+  pivot_longer(col=c(3:67)) %>% 
+  select(-Code) %>% 
+  mutate(name=as.factor(name), year=as.integer(year)) %>% 
+ community_stability (time.var = 'year',  abundance.var = 'value')
+}
+
+# comm synchonries
+
+for (s in 1:length(lb10.siteID)){
+stability.metrics[s,2]=
+ LB10.imp %>% 
+  filter(Code==lb10.siteID[s]) %>% 
+  pivot_longer(col=c(3:67)) %>% 
+  select(-Code) %>% 
+  mutate(name=as.factor(name), year=as.integer(year)) %>% 
+ synchrony (time.var = 'year', species.var='name', abundance.var = 'value',metric = 'Loreau' )
+}
+
+
+for (s in 1:length(lb10.siteID)){
+stability.metrics[s,3]=
+ LB10.imp %>% 
+  filter(Code==lb10.siteID[s]) %>% 
+  pivot_longer(col=c(3:67)) %>% 
+  select(-Code) %>% 
+  mutate(name=as.factor(name), year=as.integer(year)) %>% 
+ synchrony (time.var = 'year', species.var='name', abundance.var = 'value',metric = 'Gross' )
+}
+
+
+
+```
+
+# Plot stability metrics and diversity
+```{r}
+cbind.data.frame(lb10.div.means[,-1], stability.metrics) %>% 
+pairs(panel=(panel.smooth))
+```
+
+
+## *Nest the lb10.imp over each site*
+```{r}
+LB10.imp.n=LB10.imp %>% 
+  group_by(Code) %>% 
+  nest()
+```
+
+
+
+
+# *Stability function* to run over moving window of n years
+```{r}
+
+# this function only works within nested version of lb10 nested for sites
+
+stabf=function(df){
+df %>% 
+  #filter(Code==lb10.siteID[1]) %>% 
+  pivot_longer(col=speciesID.imp) %>% # remove also 
+  #select(-Code) %>% 
+  mutate(name=as.factor(name), year=as.integer(year)) %>% 
+ community_stability (time.var = 'year',  abundance.var = 'value')
+}
+
+
+stabf(b.CI1.imp)
+```
+
+#tests
+```{r}
+
+b.CI1.imp %>% 
+  pivot_longer(col=speciesID.imp)
+
+LB10.imp.n$data[[1]] %>% 
+  pivot_longer(col=speciesID.imp)
+
+# the stability funciton b works on both the nested and original site data
+stabf(b.CI1.imp) # 
+
+stabf(LB10.imp.n$data[[1]])
+
+```
+
+
+
+# run the stability function on each nested site
+```{r}
+LB10.imp.n=
+LB10.imp.n %>% 
+  mutate(com.stability=unlist(map(data, stabf)))
+
+
+LB10.imp.n$data[[1]]
+```
+
+
+
+# function that claculate the comm stability metric *for a window of 5 years (moving by 1y each time)*
+```{r}
+
+# test for creating the function
+zio=list()
+ywindow=5
+for(i in 1:(nrow(b.CI1.imp)-ywindow)){
+zio[[i]]=  stabf.b(b.CI1.imp[i:(i+4),])
+}
+
+
+
+stabf.mw=function(df){
+zio=list()
+ywindow=5
+for(i in 1:(nrow(df)-ywindow)){
+zio[[i]]=  stabf(df[i:(i+5),])}
+return(unlist(zio))
+}
+
+stabf.mw(b.CI1.imp)
+
+stabf.mw(LB10.imp.n$data[[1]])
+
+```
+
+```{r}
+stabf.mw(b.LI7.imp)
+```
+
+
+
+
+# run the moving window stability function on each site (nested)
+```{r}
+
+LB10.imp.n =
+LB10.imp.n %>% 
+  mutate(stability.mw=(map(data, stabf.mw)))
+
+LB10.imp.n$stability.mw[[1]]
+
+rbindlist(list(LB10.imp.n$stability.mw))
+
+```
+#extract the moving window of comm stability into a df
+```{r}
+
+time.window5=matrix(nrow=29)
+for(i in 1:29){
+time.window5[i,]=paste(time.lb10[i], time.lb10[i+5], sep='_')  
+}
+
+comm.stab.mw=cbind.data.frame(time.window=time.window5,
+  rbindlist(list(LB10.imp.n$stability.mw))
+)
+
+colnames(comm.stab.mw)[2:11]=rownames(stability.metrics)
+```
+
+# Plot the comm stability
+```{r fig.width=9}
+comm.stab.mw %>% 
+  pivot_longer(cols = -1) %>% 
+  ggplot()+aes(time.window, value, group=1)+geom_path()+facet_wrap(~name)+theme(axis.text.x = element_text(angle=90))
+```
+
+
+
+
+# *Synchrony function* to run over moving window of n years
+```{r}
+
+# this function only works within nested version of lb10 nested for sites
+
+synchf=function(df){
+df %>% 
+  #filter(Code==lb10.siteID[1]) %>% 
+  pivot_longer(col=speciesID.imp) %>% # remove also 
+  #select(-Code) %>% 
+  mutate(name=as.factor(name), year=as.integer(year)) %>% 
+ synchrony (time.var = 'year',species.var = 'name',  abundance.var = 'value', metric = 'Loreau')
+}
+
+
+synchf(b.CI1.imp)
+```
+
+# synchrony funciton over 5 y moving window (as done fo stability)
+```{r}
+
+synchf.mw=function(df){
+zio=list()
+ywindow=5
+for(i in 1:(nrow(df)-ywindow)){
+zio[[i]]=  synchf(df[i:(i+5),])}
+return(unlist(zio))
+}
+```
+
+
+
+# run the moving window stability function on each site (nested)
+```{r}
+
+LB10.imp.n =
+LB10.imp.n %>% 
+  mutate(synch.loreau.mw=(map(data, synchf.mw)))
+
+LB10.imp.n$synch.loreau.mw[[1]]
+
+rbindlist(list(LB10.imp.n$stability.mw))
+```
+
+# extractt he synchrony moving window loreau
+```{r}
+synch.loreau.mw=cbind.data.frame(time.window=time.window5,
+  rbindlist(list(LB10.imp.n$synch.loreau.mw))
+)
+
+colnames(synch.loreau.mw)[2:11]=rownames(stability.metrics)
+```
+
+
+# Plot the comm synchrony
+```{r fig.width=9}
+synch.loreau.mw %>% 
+  pivot_longer(cols = -1) %>% 
+  ggplot()+aes(time.window, value, group=1)+geom_path()+facet_wrap(~name)+theme(axis.text.x = element_text(angle=90))+ylab('Community synchrony')
+```
+
+
+```{r}
+plotmag(
+wpmf(
+cleandat(as.matrix(t(synch.loreau.mw[,-1])), times=c(1:29), clev = 4)$cdat,
+times=c(1:29), sigmethod = 'quick'))
+```
+
+
+
+
+# Get the 6y timewindow for nao
+```{r}
+wNAO_window=
+cbind.data.frame(
+  time.window5,
+NAOwindow=rollmean(NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1985:2018)) %>%  pull(mean.nao), k=6, align = 'center'))
+
+```
+
+
+
+```{r}
+cbind.data.frame(NAOwindow=wNAO_window$NAOwindow, synch.loreau.mw) %>% 
+pivot_longer(cols=-c(1,2))  %>% 
+  ggplot()+aes(NAOwindow, value)+geom_point()+geom_smooth(method='lm')+facet_wrap(~name)
+
+```
+
+```{r}
+cbind.data.frame(NAOwindow=wNAO_window$NAOwindow, comm.stab.mw) %>% 
+pivot_longer(cols=-c(1,2))  %>% 
+  ggplot()+aes(NAOwindow, value)+geom_point()+geom_smooth(method='lm')+facet_wrap(~name, scales = 'free')
+```
+# Plot the maen synchrony and stability vs nao
+```{r}
+cbind.data.frame(wNAO_window, mean.stability=rowMeans(comm.stab.mw[,-1])) %>% 
+  ggplot()+aes(NAOwindow, mean.stability, label=time.window5)+geom_point()+geom_text_repel(size=3)+geom_smooth(method='lm')
+
+
+
+cbind.data.frame(wNAO_window, mean.synchrony=rowMeans(synch.loreau.mw[,-1])) %>% 
+  ggplot()+aes(NAOwindow, mean.synchrony, label=time.window5)+geom_point()+geom_text_repel(size=3)+geom_smooth(method='lm')
+
+```
+# Mean stability vs NAO for each stream, with color by mean richness
+```{r}
+cbind.data.frame(wNAO_window, comm.stab.mw) %>% 
+  pivot_longer(cols=c(4:13), names_to = 'Code') %>% left_join(lb10.div.means, by='Code' ) %>% 
+  ggplot()+aes(NAOwindow, value, label=time.window5)+geom_point(aes(col=mrich))+geom_smooth(method='lm')+
+  scale_color_gradient(high='darkred', low='gold3')+facet_wrap(~Code, scale='free')
+
+```
+# Functions to extract the effect of NAO on stability and synchrony (as slope on mw data)
+```{r}
+CommStabFn=function(df){
+  coefficients(lm(CommStab~NAOwindow, df))[2]
+}
+
+CommSynchFn=function(df){
+  coefficients(lm(CommSynchLoreau~NAOwindow, df))[2]
+}
+```
+
+# Plot the effect of NAO on stability (as slope) vs the mean richness of streams. No clear pattern
+```{r}
+cbind.data.frame(wNAO_window, comm.stab.mw) %>% 
+  pivot_longer(cols=c(4:13), names_to = 'Code', values_to = 'CommStab') %>% left_join(lb10.div.means, by='Code' ) %>% 
+  group_by(Code) %>% nest() %>% 
+  mutate(StabEffect=map(data, CommStabFn)) %>% unnest() %>% 
+  ggplot()+aes(mrich,StabEffect)+geom_point()+geom_smooth()
+```
+
+```{r}
+cbind.data.frame(wNAO_window, comm.stab.mw) %>% 
+  pivot_longer(cols=c(4:13), names_to = 'Code', values_to = 'CommStab') %>% left_join(rao.div.means, by='Code' ) %>% 
+  group_by(Code) %>% nest() %>% 
+  mutate(StabEffect=map(data, CommStabFn)) %>% unnest() %>% 
+  ggplot()+aes(mean.FunRao,StabEffect)+geom_point()+geom_smooth()
+
+cbind.data.frame(wNAO_window, synch.loreau.mw) %>% 
+  pivot_longer(cols=c(4:13), names_to = 'Code', values_to = 'CommSynchLoreau') %>% left_join(rao.div.means, by='Code' ) %>% 
+  group_by(Code) %>% nest() %>% 
+  mutate(SynchEffect=map(data, CommSynchFn)) %>% unnest() %>% 
+  ggplot()+aes(mean.FunRao,SynchEffect)+geom_point()+geom_smooth()
+
+```
+
+
+
+
+# Eventually calculate the richness (mean site or metacom) for each 6-y time window
+
+
+
+```{r}
+Richness.mw=as.data.frame(matrix(nrow=length(time.window5), ncol=10))
+rownames(Richness.mw)=time.window5
+colnames(Richness.mw)=lb10.siteID
+
+for(s in 1: length(lb10.siteID)){
+  
+Richness.mw[,s]=rollmean(lb10.div %>%  filter(Code==lb10.siteID[s]) %>% pull(richness), k=6, align = 'center')
+}
+
+```
+
+# *not particular effect of mean sstream richness on the 6y moving window of stability or synchrony*
+
+```{r fig.width=6}
+
+
+cbind.data.frame(wNAO_window, mean.rich.mw=rowMeans(Richness.mw),
+                 mean.synch=rowMeans(synch.loreau.mw [,-1])) %>% 
+  ggplot()+aes(NAOwindow, mean.synch, label=time.window5)+geom_point()+geom_text_repel(aes(col=mean.rich.mw), size=2.5)+
+  geom_point(aes(col=mean.rich.mw), size=3)+geom_smooth(method='lm')+
+  scale_color_gradient(high='darkred', low='gold3')+ylab('Mean community synchrony (Loreau)')
+
+
+cbind.data.frame(wNAO_window, mean.rich.mw=rowMeans(Richness.mw),
+                 mean.stability=rowMeans(comm.stab.mw[,-1])) %>% 
+  ggplot()+aes(NAOwindow, mean.stability, label=time.window5)+geom_text_repel(aes(col=mean.rich.mw), size=2.5)+
+  geom_point(aes(col=mean.rich.mw), size=3)+
+  geom_smooth(method='lm', col='grey50', alpha=.2)+
+  scale_color_gradient(high='darkred', low='gold3')+ylab('Mean community stability')
+
+
+
+```
+
+# No strong relation between Loreau synchrony and richness
+```{r}
+cbind.data.frame(wNAO_window, mean.rich.mw=rowMeans(Richness.mw),
+                 mean.stability=rowMeans(comm.stab.mw[,-1])) %>% 
+  ggplot()+aes(mean.rich.mw, mean.stability)+geom_point()
+
+cbind.data.frame(wNAO_window, mean.rich.mw=rowMeans(Richness.mw),
+                 mean.synch=rowMeans(synch.loreau.mw[,-1])) %>% 
+  ggplot()+aes(mean.rich.mw, mean.synch)+geom_point()
+
+```
+
+#Regional scale richness and shannon and its moving window over 6y
+```{r}
+reg.richness=
+LB10.imp[,-1] %>% group_by(year) %>% summarise_all(sum) %>% select(-1) %>% apply(1,renyi, scales=0, hill=T)
+
+reg.richness %>% rollmean(k=6, align = 'center')
+
+
+
+reg.shannon=
+LB10.imp[,-1] %>% group_by(year) %>% summarise_all(sum) %>% select(-1) %>% apply(1,renyi, scales=1, hill=T)
+
+```
+
+# Again no strong effect of regional richness diversity on mean community stability as affected by wNAO moving window
+```{r}
+cbind.data.frame(wNAO_window, reg.rich.mw=reg.richness %>% rollmean(k=6, align = 'center'),
+                 mean.synch=rowMeans(synch.loreau.mw [,-1])) %>% 
+  ggplot()+aes(NAOwindow, mean.synch, label=time.window5)+geom_point()+geom_point(aes(col=reg.rich.mw), size=3)+geom_smooth(method='lm')+
+  scale_color_gradient(high='darkred', low='gold3')
+
+cbind.data.frame(wNAO_window, reg.rich.mw=reg.richness %>% rollmean(k=6, align = 'center'),
+                 mean.stability=rowMeans(comm.stab.mw[,-1])) %>% 
+  ggplot()+aes(NAOwindow, mean.stability, label=time.window5)+geom_point()+geom_point(aes(col=reg.rich.mw), size=3)+geom_smooth(method='lm')+
+  scale_color_gradient(high='darkred', low='gold3')
+
+cbind.data.frame(wNAO_window, reg.shan.mw=reg.shannon %>% rollmean(k=6, align = 'center'),
+                 mean.stability=rowMeans(comm.stab.mw[,-1])) %>% 
+  ggplot()+aes(NAOwindow, mean.stability, label=time.window5)+geom_point()+geom_point(aes(col=reg.shan.mw), size=3)+geom_smooth(method='lm')+
+  scale_color_gradient(high='darkred', low='gold3')
+
+```
+### Quick test of wang decmposition using moving window
+
+```{r}
+wang_mw=as.data.frame(matrix(nrow=length(time.window5), ncol=length(res.wang.part)))
+rownames(wang_mw)=time.window5
+colnames(wang_mw)=names(res.wang.part)
+
+var.partition(myarray[,c(1: (1+5)),])
+
+
+for(y in 1: length(time.window5)){
+ wang_mw[y,]= var.partition(myarray[,c(y: (y+5)),])
+}
+
+```
+# add wNAOwindow on the wang's stability window
+```{r}
+wang_mw$wNAO.window=wNAO_window$NAOwindow
+```
+
+# *wNAO affects all components of Wang stability*
+```{r}
+wang_mw %>% 
+  pivot_longer(cols=c(1:8)) %>% 
+  ggplot()+aes(wNAO.window, value)+geom_point()+geom_smooth(method='lm')+facet_wrap(~name, scales = 'free')
+```
+# breaking down the CV and synch effect across hierarchies
+```{r}
+res.wang.part
+
+# CV_C_R= CV_S_R * phi_S2C_R   ; this is the 1st decompsitiono of metacom CV
+
+res.wang.part[3]*res.wang.part[8]
+
+```
+
+# similar effect of NAO on CV_metapopulation and regional scale spp synchorny
+```{r}
+mod_CV_S_R=
+(lm(log10(wang_mw$CV_S_R)~wang_mw$wNAO.window))
+
+mod_phi_S2C_R=
+  lm(log10(wang_mw$phi_S2C_R)~wang_mw$wNAO.window)
+
+# stadard coeff CV_S_R
+mod_CV_S_R$coefficients[2]*(sd(wang_mw$wNAO.window)/
+                              sd(wang_mw$CV_S_R))
+# stand coeff Phi_S2C_R
+mod_phi_S2C_R$coefficients[2]* (sd(wang_mw$wNAO.window)/
+                                  sd(wang_mw$phi_S2C_R))
+
+sd(wang_mw$CV_S_R)#sd.y
+sd(wang_mw$phi_S2C_R)
+sd(wang_mw$wNAO.window)#sd.x
+
+
+
+
+```
+
+```{r}
+wang_mw[c(1,8,9)] %>% 
+  pivot_longer(cols=c(1:2)) %>% 
+  #mutate(name=factor(name, levels=c('CV_S_L', 'CV_S_R', 'CV_C_R'))) %>% 
+  ggplot()+aes(wNAO.window, value, col=name)+geom_point()+geom_line()+  scale_y_log10()+geom_smooth(method='lm')
+```
+
+
+
+
+```{r fig.width=5.5, fig.height=4.4}
+log10(res.wang.part[1]) + log10(res.wang.part[7])+log10(res.wang.part[6])
+
+# equals
+log10(res.wang.part[4])
+
+wang_mw[c(1,3,4,9)] %>% 
+  pivot_longer(cols=c(1:3)) %>% 
+  mutate(name=factor(name, levels=c('CV_S_L', 'CV_S_R', 'CV_C_R'))) %>% 
+  ggplot()+aes(wNAO.window, value, col=name)+geom_point(size=2)+geom_line(size=1.2)+  scale_y_log10()+
+  
+  geom_smooth(method='lm', se=F)+scale_color_discrete(name='Components', values=c("darkred", 'forestgreen', 'grey20'), labels=c('CV population', 'CV metapopulation', 'CV metacommunity'))+theme(legend.position = 'top')+ylab('Variability (log10)')+theme(axis.title = element_text(size=12))
+  
+  scale_color_manual(values=c("darkred", 'forestgreen', 'grey20'))+theme(legend.title = element_blank())
+
+```
+```{r fig.width=5.5, fig.height=4.4}
+wang_mw[c(1,3,4,9)] %>% 
+  pivot_longer(cols=c(1:3)) %>% 
+  mutate(name=factor(name, levels=c('CV_S_L', 'CV_S_R', 'CV_C_R'))) %>% 
+  ggplot()+aes(wNAO.window, value, col=name)+geom_point(size=2)+geom_line(size=1.2)+  scale_y_log10()+
+  
+  geom_smooth(method='lm', se=F)+theme(legend.position = 'top')+ylab('Variability (log10)')+theme(axis.title = element_text(size=12))+
+  scale_color_manual(values=c("orange", 'forestgreen', 'grey20'), labels=c('CV population', 'CV metapopulation', 'CV metacommunity'))+theme(legend.title = element_blank())
+
+  
+ 
+```
+
+
+
+
+# Wang components of variability and synchrony (non-spatial) vs wNAO.mw color code by functional Rao
+```{r fig.width=5.5}
+cbind.data.frame(wang_mw, FunRao.mw=rowMeans(FunRao.mw)) %>% 
+  pivot_longer(cols=c(1,2,3,4), names_to = 'StabComponent') %>% 
+  ggplot()+aes(wNAO.window, value )+geom_point(aes(col=FunRao.mw), size=3)+geom_smooth(method='lm')+
+  scale_color_gradient(high='darkred', low='gold3')+facet_wrap(~StabComponent)+theme(legend.position = 'right')+ylab('Variability')
+
+cbind.data.frame(wang_mw, FunRao.mw=rowMeans(FunRao.mw)) %>% 
+  pivot_longer(cols=c(7,8), names_to = 'SynchComponent') %>% 
+  ggplot()+aes(wNAO.window, value )+geom_point(aes(col=FunRao.mw), size=3)+geom_smooth(method='lm')+
+  scale_color_gradient(high='darkred', low='gold3')+facet_wrap(~SynchComponent)+theme(legend.position = 'right')+ylab('(Meta)Community synchrony')
+
+
+```
+# Plot of community synchorny (phi) at local and regional scale
+```{r}
+cbind.data.frame(wang_mw, FunRao.mw=rowMeans(FunRao.mw)) %>% 
+  pivot_longer(cols=c(7,8), names_to = 'SynchComponent') %>% 
+  mutate(SynchComponent=factor(SynchComponent)) %>% 
+  mutate(SynchComponent_r=recode_factor(SynchComponent, phi_S2C_L='Local_Synchony', phi_S2C_R='Regional_Synchrony')) %>% 
+  ggplot()+aes(wNAO.window, value )+geom_point(size=3)+geom_smooth(method='lm')+
+  facet_wrap(~SynchComponent_r)+theme(legend.position = 'right')+ylab('Community synchrony')+theme(axis.title = element_text(size=12))
+```
+
+
+# apprent effect of functional diversity on community synchrony is not significant when looking at overll mean
+```{r fig.width=5}
+cbind.data.frame(wang_mw, FunRao.mw=rowMeans(FunRao.mw)) %>% 
+  pivot_longer(cols=c(7,8), names_to = 'SynchComponent') %>% 
+  ggplot()+aes(FunRao.mw,value)+geom_point()+facet_wrap(~SynchComponent)+geom_smooth(method = 'lm')+ylab('Meta)Community synchrony')
+
+cbind.data.frame(wang_mw, FunRao.mw=rowMeans(FunRao.mw)) %>% 
+  select(FunRao.mw, phi_S2C_R) %>% lm(phi_S2C_R~FunRao.mw, data=.) %>% summary()
+
+```
+
+# plots Comm synchrony and stability vs FunRao, colored by site
+```{r}
+plot1=
+cbind.data.frame(
+synch.loreau.mw %>% pivot_longer(cols=c(2:11), values_to = 'CommSynch.Loreau'),
+FunRao.mw %>%  pivot_longer(cols=c(1:10), values_to = 'FunRao', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+   ggplot()+aes(FunRao, CommSynch.Loreau)+geom_point(aes(col=name))+geom_smooth(method='lm')+ylab('Community synchrony')+
+  theme(axis.title = element_text(size=12))+scale_color_discrete(name='Stream')
+
+plot2=
+cbind.data.frame(
+comm.stab.mw %>% pivot_longer(cols=c(2:11), values_to = 'CommStab'),
+FunRao.mw %>%  pivot_longer(cols=c(1:10), values_to = 'FunRao', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+   ggplot()+aes(FunRao, 1/CommStab)+geom_point(aes(col=name))+geom_smooth(method='lm')+ylab('Community variation')+
+   theme(axis.title = element_text(size=12))+scale_color_discrete(name='Stream')
+
+
+```
+
+
+```{r fig.width=7, fig.height=4.5}
+#library(patchwork)
+
+plot1+plot2 + plot_layout(guides='collect') & theme(legend.position = 'top')
+
+```
+
+
+
+```{r fig.width=5.5}
+cbind.data.frame(wang_mw, MeanRich.mw=rowMeans(Richness.mw)) %>% 
+  pivot_longer(cols=c(1,2,3,4), names_to = 'StabComponent') %>% 
+  ggplot()+aes(wNAO.window, value )+geom_point(aes(col=MeanRich.mw), size=3)+geom_smooth(method='lm')+
+  scale_color_gradient(high='darkred', low='gold3')+facet_wrap(~StabComponent)+theme(legend.position = 'right')+ylab('Variability')
+
+cbind.data.frame(wang_mw, MeanRich.mw=rowMeans(Richness.mw)) %>% 
+  pivot_longer(cols=c(7,8), names_to = 'SynchComponent') %>% 
+  ggplot()+aes(wNAO.window, value )+geom_point(aes(col=MeanRich.mw), size=3)+geom_smooth(method='lm')+
+  scale_color_gradient(high='darkred', low='gold3')+facet_wrap(~SynchComponent)+theme(legend.position = 'right')+ylab('(Meta)Community synchrony')
+```
+
+
+
+
+
+# Calculate richness synchrony using moving window 6y
+
+```{r}
+rich.synch_mw=as.data.frame(matrix(nrow=length(time.window5), ncol=1))
+
+
+rownames(rich.synch_mw)=time.window5
+colnames(rich.synch_mw)='Richness.synch.mw'
+
+
+
+# the richness synch as simple cor
+for(y in 1: length(time.window5)){
+ rich.synch_mw[y,]= mean(
+   cor(
+     t(richness.ts[,c(y:(y+5))]), method='spearman'
+     )
+   )
+}
+```
+
+# add the NAO window inot the richness synch moving window
+```{r}
+rich.synch_mw$wNAOwindow=wNAO_window$NAOwindow[match(rownames(rich.synch_mw), wNAO_window$time.window5)]
+
+
+```
+
+# NAO window does affect richness synchrony (higher synch with higher NAO), but relation is weak
+*if we want to limit temporal autocor, just use every second record for the analysis. Limit overlap across mw*
+```{r fig.width=5}
+rich.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% #with every second year-window only
+  ggplot()+aes(wNAOwindow, Richness.synch.mw, label=row.names(rich.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),]))+geom_point(size=2)+geom_text_repel(size=2.5)+
+  geom_smooth(method='lm', col='grey50', alpha=.3)+ylab('Richness synchrony mw')+ xlab('Winter NAO mw')
+
+
+summary(lm(Richness.synch.mw~wNAOwindow, data=rich.synch_mw))
+```
+
+```{r}
+m1=lm(Richness.synch.mw~wNAOwindow, data=rich.synch_mw)
+summary(m1)
+
+pacf(residuals(m1))
+
+library(nlme)
+m2=gls(Richness.synch.mw~wNAOwindow, data=rich.synch_mw, cor=corAR1(0.8))
+
+summary(m2)
+
+
+
+m2b=gls(Richness.synch.mw~wNAOwindow, data=rich.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),], cor=corAR1(0.6))
+summary(m2b)
+
+c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),]
+```
+
+
+```{r}
+library(zoo)
+library(ggrepel)
+```
+```{r}
+
+```
+
+
+```{r fig.width=6}
+rich.synch_mw %>% 
+  mutate(RegRich.mw= reg.richness %>% rollmean(k=6, align = 'center')) %>% 
+  ggplot()+aes(wNAOwindow, Richness.synch.mw, label=row.names(rich.synch_mw))+geom_point(size=2, aes(col=RegRich.mw))+geom_text_repel(size=2.5)+ scale_color_gradient(high='darkred', low='gold3')+
+  geom_smooth(method='lm', col='grey50', alpha=.3)+ylab('Richness synchrony mw')+ xlab('Winter NAO mw')
+
+
+rich.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  mutate(MeanRich.mw= rowMeans(Richness.mw)) %>% 
+  ggplot()+aes(wNAOwindow, Richness.synch.mw, label=row.names(rich.synch_mw))+geom_point(size=2, aes(col=MeanRich.mw))+geom_text_repel(size=3)+ scale_color_gradient(high='darkred', low='gold3')+
+  geom_smooth(method='lm', col='grey50', alpha=.3)+ylab('Richness synchrony mw')+ xlab('Winter NAO mw')
+
+```
+
+
+
+
+
+# Claculate non-param function NCF as moving window
+```{r}
+
+rich.ncf_mw=as.data.frame(matrix(nrow=length(time.window5), ncol=1))
+
+
+rownames(rich.ncf_mw)=time.window5
+colnames(rich.ncf_mw)='rich.cbar_interc.mw'
+
+
+
+# the richness synch as simple cor
+for(y in 1: length(time.window5)){
+ rich.ncf_mw[y,]= 
+   Sncf(x=coordsLB10$X, y=coordsLB10$Y, z=as.matrix((richness.ts[,c(y:(y+5))])), type = 'perm', resamp = 500)$real$cbar
+   
+}
+```
+```{r}
+rich.ncf_mw$wNAOwindow=wNAO_window$NAOwindow[match(rownames(rich.ncf_mw), wNAO_window$time.window5)]
+```
+
+```{r}
+rich.ncf_mw %>% 
+  ggplot()+aes(wNAOwindow, rich.cbar_interc.mw, label=row.names(rich.synch_mw))+geom_point(size=2)+geom_text_repel(size=2.5)+
+  geom_smooth(method='lm', col='grey50', alpha=.3)+ylab('Richness ncf mw')+ xlab('Winter NAO mw')
+
+
+summary(lm(rich.ncf_mw$rich.cbar_interc.mw~rich.ncf_mw$wNAOwindow))
+
+```
+
+
+
+# Calculate Simpson synchrony moving window
+```{r}
+simp.synch_mw=as.data.frame(matrix(nrow=length(time.window5), ncol=1))
+
+
+rownames(simp.synch_mw)=time.window5
+colnames(simp.synch_mw)='Simpson.synch.mw'
+
+
+
+# the richness synch as simple cor
+for(y in 1: length(time.window5)){
+ simp.synch_mw[y,]= mean(
+   cor(
+     t(simpson.ts[,c(y:(y+5))]), method='spearman'
+     )
+   )
+}
+```
+
+
+```{r}
+simp.synch_mw$wNAOwindow=wNAO_window$NAOwindow[match(rownames(simp.synch_mw), wNAO_window$time.window5)]
+```
+
+# NAO window does NOT affect Simpson synchrony 
+```{r}
+simp.synch_mw %>% 
+  ggplot()+aes(wNAOwindow, Simpson.synch.mw)+geom_point(size=3)+geom_smooth(method='lm')
+
+
+
+```
+
+
+
+# Calculate Abundance synchrony moving window
+```{r}
+abund.synch_mw=as.data.frame(matrix(nrow=length(time.window5), ncol=1))
+
+
+rownames(abund.synch_mw)=time.window5
+colnames(abund.synch_mw)='Abund.synch.mw'
+
+
+
+# the richness synch as simple cor
+for(y in 1: length(time.window5)){
+ abund.synch_mw[y,]= mean(
+   cor(
+     t(abund.ts[,c(y:(y+5))]), method='spearman'
+     )
+   )
+}
+```
+
+```{r}
+abund.synch_mw$wNAOwindow=wNAO_window$NAOwindow[match(rownames(abund.synch_mw), wNAO_window$time.window5)]
+```
+
+# NAO window does affect synchrony in abundance. 
+```{r fig.width=6}
+abund.synch_mw %>% 
+  ggplot()+aes(wNAOwindow, Abund.synch.mw)+geom_point(size=3)+geom_smooth(method='lm')
+
+abund.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  #mutate(RegRich.mw= reg.richness %>% rollmean(k=6, align = 'center')) %>% 
+  #mutate(MeanRich.mw= rowMeans(Richness.mw)) %>% 
+  ggplot()+aes(wNAOwindow, Abund.synch.mw, label=row.names(abund.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),]))+geom_point(size=2)+geom_text_repel(size=3)+
+  
+  geom_smooth( col='grey50', alpha=.3, method='lm')+ylab('Abundance synchrony mw')+ xlab('Winter NAO mw')
+
+
+
+abund.synch_mw %>% 
+  #mutate(RegRich.mw= reg.richness %>% rollmean(k=6, align = 'center')) %>% 
+  mutate(MeanRich.mw= rowMeans(Richness.mw)) %>% 
+  ggplot()+aes(wNAOwindow, Abund.synch.mw, label=row.names(abund.synch_mw))+geom_point(size=2, aes(col=MeanRich.mw))+geom_text_repel(size=3)+
+  scale_color_gradient(high='darkred', low='gold3')+
+  geom_smooth( col='grey50', alpha=.3)+ylab('Abundance synchrony mw')+ xlab('Winter NAO mw')
+
+
+```
+
+```{r}
+m3=lm(abund.synch_mw$Abund.synch.mw~ abund.synch_mw$wNAOwindow)
+summary(m3)
+acf(residuals(m3))
+
+pacf(residuals(m3))
+
+m4=gls(Abund.synch.mw~wNAOwindow,data=abund.synch_mw, cor=corAR1(0.5))
+
+summary(m4)
+
+
+
+m5=gls(Abund.synch.mw~wNAOwindow,data=abund.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),], cor=corAR1(0.5))
+summary(m5)
+```
+
+
+```{r}
+install.packages('orcutt')
+library(orcutt)
+
+orc.m3=
+cochrane.orcutt(m3)
+```
+
+# create simple vector of labels for time window skipping every second value
+```{r}
+time.window5
+time.window5[seq(2, length(time.window5), 2)]
+time.window5_skip=time.window5
+
+time.window5_skip[seq(2, length(time.window5), 2)]=""
+```
+
+
+# Plot the abundance mw over time along with NAO window
+```{r}
+
+
+abund.synch_mw %>% 
+  ggplot()+aes(row.names(abund.synch_mw), Abund.synch.mw, group=1)+geom_point(size=3)+
+  geom_path(aes(row.names(abund.synch_mw) ,wNAOwindow), col='blue')+theme(axis.text.x = element_text(angle=45, hjust=1))+
+  xlab(NULL)+ylab('Mean abundance snchrony')+scale_y_continuous(sec.axis = sec_axis(~.*1, name = "Winter NAO mw"))+theme(axis.title.y.right = element_text(color = "blue")) +theme(axis.text.y.right = element_text(color='blue'))+theme(axis.title = element_text(size=12), axis.text.x = element_text(size=12)) +scale_x_discrete(labels=time.window5_skip)
+
+```
+
+
+
+# Run the PCoA on imputed spp data
+```{r}
+pcoa.imp=
+log(LB10.imp[,-c(1,2)]+1) %>% 
+  vegdist('bray') %>% 
+  pcoa()
+```
+
+```{r}
+pcoa.imp.ax=
+  cbind(LB10.imp[,c(1,2)], pcoa.imp$vectors[,c(1:4)])
+```
+
+# Plot PCoA imputed spp for LB10
+```{r}
+pcoa.imp.ax%>% 
+  mutate(year=as.numeric(year)) %>%
+  #dplyr::filter(!Code %in% c('CI3', 'CI6','GI1','GI2')) %>% 
+  ggplot()+aes(Axis.1, Axis.2, col=year) +geom_point(size=0.5)+geom_path()+theme_bw()+
+  facet_wrap(~Code)+scale_color_gradient(high='darkblue', low='gold3')
+```
+
+# Derive matrices with scores for ax1 and ax2, to get the synchrony spatial
+```{r}
+pcoa.ax1.mat=
+pcoa.imp.ax[,c(1,2,3)] %>% 
+  pivot_wider(id_cols = c(1,2), values_from = Axis.1, names_from = year)
+
+pcoa.ax2.mat=
+pcoa.imp.ax[,c(1,2,4)] %>% 
+  pivot_wider(id_cols = c(1,2), values_from = Axis.2, names_from = year)
+```
+
+
+# Run the moving window of PCoA axis 1 and 2 synchrony
+```{r}
+pcoa.ax.synch_mw=as.data.frame(matrix(nrow=length(time.window5), ncol=1))
+
+
+rownames(pcoa.ax.synch_mw)=time.window5
+colnames(pcoa.ax.synch_mw)='PCoAAx1.synch.mw'
+
+
+
+# the richness synch as simple cor
+for(y in 1: length(time.window5)){
+ pcoa.ax.synch_mw[y,]= mean(
+   cor(
+     t(pcoa.ax1.mat[,-1][,c(y:(y+5))]), method='spearman'
+     )
+   )
+}
+```
+
+```{r}
+pcoa.ax.synch_mw$PCoAAx2.synch.mw=NA
+
+for(y in 1: length(time.window5)){
+ pcoa.ax.synch_mw[y,2]= mean(
+   cor(
+     t(pcoa.ax2.mat[,-1][,c(y:(y+5))]), method='spearman'
+     )
+   )
+}
+
+```
+
+
+# Add the NAOmw to the synchorny PCoA axis mw
+```{r}
+pcoa.ax.synch_mw$wNAO.mw= wNAO_window$NAOwindow
+```
+
+# Evident synchrony in PCoA Axis 2 during positive NAO phases
+```{r}
+pcoa.ax.synch_mw %>% 
+  ggplot()+aes(wNAO.mw, PCoAAx1.synch.mw)+geom_point()+geom_smooth(method='lm')
+
+pcoa.ax.synch_mw %>% 
+  ggplot()+aes(wNAO.mw, PCoAAx2.synch.mw)+geom_point()+geom_smooth(method='lm')
+
+```
+
+
+
+
+# Can derive the richness and abundance time-window for temperature preferences groups
+Need to first extract timeseries specific to rchness of cold, and warm spp
+
+#*for example, use the cold.div to derive timeseries and run the moving window approach!*
+```{r}
+abund.ts.cold=
+  cold.div %>% 
+  select(c(Code, year, abund)) %>% 
+  pivot_wider(names_from = year, values_from = abund) %>% as.data.frame()
+
+abund.ts.cold$Code=NULL
+
+# tried this to parallel what needed to run same analysis for warm taxa
+#abund.ts.cold=abund.ts.cold[-c(5,6),]
+
+```
+
+# derive the cold abundance mw
+```{r}
+abund.cold.synch_mw=as.data.frame(matrix(nrow=length(time.window5), ncol=1))
+
+
+rownames(abund.cold.synch_mw)=time.window5
+colnames(abund.cold.synch_mw)='Abund.cold.synch.mw'
+
+
+
+# the richness synch as simple cor
+for(y in 1: length(time.window5)){
+ abund.cold.synch_mw[y,]= mean(
+   cor(
+     t(abund.ts.cold[,c(y:(y+5))]), method='spearman'
+     )
+   )
+}
+```
+
+```{r}
+abund.cold.synch_mw$wNAOwindow=wNAO_window$NAOwindow[match(rownames(abund.cold.synch_mw), wNAO_window$time.window5)]
+```
+
+# Plot abundance suyncrony for cold spp vs NAO
+```{r}
+abund.cold.synch_mw %>% 
+  ggplot()+aes(wNAOwindow, Abund.cold.synch.mw, label=row.names(abund.synch_mw))+geom_point(size=2)+geom_text_repel(size=2.5)+
+  geom_smooth( col='grey50', alpha=.3, method = 'lm')+ylab('Abundance Cold - synchrony mw')+ xlab('Winter NAO mw')
+
+summary(lm(Abund.cold.synch.mw~wNAOwindow, data=abund.cold.synch_mw))
+```
+
+
+
+# Warm spp abundance ts, and moving window synch
+*must delete one stream that has no variance in serveral mw, and produce NA*
+```{r}
+abund.ts.warm=
+  warm.div %>% 
+  select(c(Code, year, abund)) %>% 
+  pivot_wider(names_from = year, values_from = abund) %>% as.data.frame()
+
+abund.ts.warm$Code=NULL
+
+abund.ts.warm=abund.ts.warm[-c(6),]
+
+```
+
+# derive the warm abundance mw
+```{r}
+abund.warm.synch_mw=as.data.frame(matrix(nrow=length(time.window5), ncol=1))
+
+
+rownames(abund.warm.synch_mw)=time.window5
+colnames(abund.warm.synch_mw)='Abund.warm.synch.mw'
+
+
+
+# the richness synch as simple cor
+for(y in 1: length(time.window5)){
+ abund.warm.synch_mw[y,]= mean(
+   cor(
+     t(abund.ts.warm[,c(y:(y+5))]), method='spearman'
+     )
+   )
+}
+```
+
+```{r}
+abund.warm.synch_mw$wNAOwindow=wNAO_window$NAOwindow[match(rownames(abund.warm.synch_mw), wNAO_window$time.window5)]
+```
+
+# plot of sycnhrony mw for warm taxa
+```{r}
+abund.warm.synch_mw %>% 
+  ggplot()+aes(wNAOwindow, Abund.warm.synch.mw, label=row.names(abund.synch_mw))+geom_point(size=2)+geom_text_repel(size=2.5)+
+  geom_smooth( col='grey50', alpha=.3, method='lm')+ylab('Abundance warm - synchrony mw')+ xlab('Winter NAO mw')
+
+summary(lm(Abund.warm.synch.mw~wNAOwindow, data=abund.warm.synch_mw))
+```
+
+*# can derive time series for TBI metrics to get synch moving window there too*
+```{r}
+abund.ts
+TBI.loss.pa
+```
+# Create time window vector for the TBI metrics
+```{r}
+time.window.tbi=matrix(nrow=29)
+for(i in 1:29){
+time.window.tbi[i,]=paste(deltamat[i], deltamat[i+4], sep='_')  
+}
+```
+
+
+# derive synch mw for TBI loss
+```{r}
+tbi.loss.synch_mw=as.data.frame(matrix(nrow=length(time.window.tbi), ncol=1))
+
+
+rownames(tbi.loss.synch_mw)=time.window.tbi
+colnames(tbi.loss.synch_mw)='Extinction.synch.mw'
+
+
+
+# the richness synch as simple cor
+for(y in 1: length(time.window.tbi)){
+ tbi.loss.synch_mw[y,]= mean(
+   cor(
+     t(TBI.loss.pa[,c(y:(y+4))]), method='spearman'
+     )
+   )
+}
+```
+
+```{r}
+tbi.loss.synch_mw$wNAOwindow=wNAO_window$NAOwindow
+#tbi.loss.synch_mw$wNAOwindo=NULL
+```
+
+# Plot of extinction synch mw vs wNAO
+```{r}
+tbi.loss.synch_mw %>% 
+  ggplot()+aes(wNAOwindow, Extinction.synch.mw, label=row.names(tbi.loss.synch_mw))+geom_point(size=2)+geom_text_repel(size=2.5)+
+  geom_smooth( col='grey50', alpha=.3, method='lm')+ylab('Extinction - synchrony mw')+ xlab('Winter NAO mw')
+```
+
+# derive synch mw for TBI gain
+```{r}
+# 
+
+tbi.imm.synch_mw=as.data.frame(matrix(nrow=length(time.window.tbi), ncol=1))
+
+
+rownames(tbi.imm.synch_mw)=time.window.tbi
+colnames(tbi.imm.synch_mw)='Colonisation.synch.mw'
+
+
+
+# the richness synch as simple cor
+for(y in 1: length(time.window.tbi)){
+ tbi.imm.synch_mw[y,]= mean(
+   cor(
+     t(TBI.gain.pa[,c(y:(y+4))]), method='spearman'
+     )
+   )
+}
+```
+
+
+
+
+```{r}
+tbi.imm.synch_mw$wNAOwindow=wNAO_window$NAOwindow
+```
+
+
+```{r}
+tbi.imm.synch_mw %>% 
+  ggplot()+aes(wNAOwindow, Colonisation.synch.mw, label=row.names(tbi.imm.synch_mw))+geom_point(size=2)+geom_text_repel(size=2.5)+
+  geom_smooth( col='grey50', alpha=.3, method='lm')+ylab('Colonisation - synchrony mw')+ xlab('Winter NAO mw')
+```
+
+
+### Can derive the *moving window of spatial beta div*, across all streams
+# Here I use the *array.beta* object created in Bio.Rmd, which holds the betadiv matrix for each year
+
+```{r}
+
+betalist.mw=list()# list to hold betadiv mw
+
+# mean betadiv (across sites) for the moving window
+for(y in 1: length(time.window5)){
+  betalist.mw[[y]]=iCAMP::dist.3col(as.dist(apply(array.beta[,,c(y:(y+5))], c(1,2), mean)))
+}
+
+# add the time-window that match
+for(y in 1: length(time.window5)){
+  betalist.mw[[y]]$twin=time.window5[y]
+}
+
+# Extract and rbind all the windows for betadiversity
+spatial.betadiv.mw=
+do.call(rbind, betalist.mw)
+
+# add the site pair and time window info
+spatial.betadiv.mw$site.pair=paste(spatial.betadiv.mw$name1, spatial.betadiv.mw$name2, sep=":")
+spatial.betadiv.mw$site.pair_tw=paste(spatial.betadiv.mw$site.pair, spatial.betadiv.mw$twin, sep="_")
+
+```
+
+# add site pair and timewindo info into the mean population synch moving window
+```{r}
+meanpop_synchronies_mw$site.pair_tw=paste(meanpop_synchronies_mw$site.pair, meanpop_synchronies_mw$timewindow, sep="_")
+```
+
+```{r}
+meanpop_synchronies_mw$mean.spat.betadiv=spatial.betadiv.mw$dis[match(meanpop_synchronies_mw$site.pair_tw,
+                                                                      spatial.betadiv.mw$site.pair_tw)]
+```
+
+```{r fig.width=5.5}
+meanpop_synchronies_mw %>% 
+  ggplot()+aes(mean.spat.betadiv, mean.pop.synch, col=NAOmw.q)+geom_smooth(method='lm', se=F)+scale_color_brewer (palette='Reds')+
+  ylab('Mean population synchrony (mw)')+xlab('Mean spatial betadiversity')
+```
+# no apprent effect of mean spatial beta on the wangs components
+
+```{r}
+
+cbind.data.frame(wang_mw,
+spatial.betadiv.mw %>% 
+  group_by(twin) %>% 
+  summarise(mean.spatbeta=mean(dis))) %>% 
+  pivot_longer(cols=c(1:8)) %>% 
+  ggplot()+aes(mean.spatbeta, value)+geom_point()+geom_smooth(method='lm', se=T)+facet_wrap(~name)
+```
+
+
+
+```{r}
+comm.stab.mw
+synch.loreau.mw
+wang_mw
+```
+
+
+
+
+
+
+
+```{r}
+install.packages('tsvr')
+library(tsvr)
+
+myarray[,,1]
+dim(myarray)
+```
+
+```{r}
+
+tmp1=myarray[,,1]
+rowSums(tmp1)
+
+tmp1=tmp1[rowSums(tmp1)>0,]
+
+tsvr1=
+tsvreq_classic(tmp1)
+
+plot(tsvr1$tsvr~tsvr1$ts, type='l')
+plot(tsvr1)
+```
+
