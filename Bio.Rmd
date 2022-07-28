@@ -6,7 +6,11 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.width = 6)
+knitr::opts_chunk$set(echo = TRUE, fig.width = 6.5)
+```
+
+```{r}
+theme_set(theme_bw())
 ```
 
 
@@ -23,7 +27,10 @@ library(data.table)
 library(gdata)
 install.packages('adespatial')
 library(adespatial)
-
+#install.packages('ggrepel')
+#library(ggrepel)
+install.packages('codyn')
+library(codyn)
 ```
 
 
@@ -112,6 +119,20 @@ spp_site_occur=
   decreasing = T)
 
 ```
+
+
+```{r}
+spp_year_occ=
+bugs %>% 
+  select(-Code) %>% 
+  group_by(year) %>% summarise_all(sum) %>% 
+  select(-year) %>% 
+  decostand('pa') %>% 
+  colSums() %>% 
+  sort(decreasing = T)
+```
+
+
 
 
 # gather bugs data in long format -useful for subsequent manipulations
@@ -252,11 +273,12 @@ log(bugs[,-c(1,2)]+1) %>%
 ```{r}
 pcoa1$values
 pcoa1$vectors
+pcoa1$
 ```
 
 ```{r}
 pcoa1.ax=
-  cbind(bugs[,c(1,2)], pcoa1$vectors)
+  cbind(bugs[,c(1,2)], pcoa1$vectors[,c(1:4)])
 ```
 
 ```{r fig.width=7}
@@ -266,6 +288,32 @@ pcoa1.ax%>%
   ggplot()+aes(Axis.1, Axis.2, col=year) +geom_point(size=0.5)+geom_path()+theme_bw()+
   facet_wrap(~Code)+scale_color_gradient(high='darkblue', low='gold3')+xlab('PCoA Axis1 (22%)')+ylab('PCoA Axis2 (14%)')
 ```
+
+```{r}
+pcoa1.ax%>% 
+  mutate(year=as.numeric(year)) %>%
+  dplyr::filter(!Code %in% c('CI3', 'CI6','GI1','GI2')) %>% 
+  ggplot()+aes(Axis.1, Axis.2, col=year) +geom_point(aes(col=Code),size=0.5)
+```
+
+
+# add the winter NAO to the pcoa1 axes
+```{r}
+pcoa1.ax$wNAO=lb10.div$NAOw[match(pcoa1.ax$year, lb10.div$year)]
+```
+
+```{r}
+pcoa1.ax %>% 
+  filter(Code %in% c('CI1', 'CI4')) %>% 
+  ggplot()+aes(wNAO, Axis.1)+geom_smooth(aes(col=Code))
+
+pcoa1.ax %>% 
+  filter(Code %in% c('LI1', 'LI2', 'LI6', 'LI7')) %>% 
+  ggplot()+aes(wNAO, Axis.1)+geom_smooth(aes(col=Code))
+
+
+```
+
 
 
 ####################################################
@@ -295,11 +343,13 @@ bugs.subs6=
         bugs %>% 
         filter(!year %in% c('1981', '1982', '1994', '2008','2009','2011')) %>%
         filter(!Code %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% 
-        select( names(spp_site_occur[spp_site_occur>6]))
-  )
+        select( names(spp_site_occur[spp_site_occur>5]) & names(spp_year_occ[spp_year_occ>7])) 
+       )
 ```
-# *Must update the subset for imputation. I removed many years here, but it allows me to derive correlation for each species w/o many NAs!*
 
+
+# *Must update the subset for imputation. I removed many years here, but it allows me to derive correlation for each species w/o many NAs!*
+# *also, perhaps including spp >5 occurrence  and also observed in >=8*
 
 ```{r}
 table(test1$Code, test1$year)
@@ -331,10 +381,11 @@ for(spp in 1:length(speciesID.subs)) {
   cbind(rep(speciesID.subs[spp], 1 )) %>% 
     cbind(row.names(.)) %>% 
   `colnames<-`(c('synch', 'Species','site.pair'))# use this function: `colnames<-` to assign column names within a pipe
-    }
+    
+  }
   
 
-spp.list.corr[[12]]
+spp.list.corr[[17]]
 
 ```
 
@@ -362,7 +413,7 @@ list2[41]
 array2=array(as.numeric(unlist(list2)), dim=c(length(unique(bugs.subs6$Code)), length(unique(bugs.subs6$Code)), length(speciesID.subs)))
 dimnames(array2)=list( unique(bugs.subs6$Code), unique(bugs.subs6$Code),speciesID.subs )
 
-array2[,,43]
+array2[,,1]
 
 ```
 
@@ -398,8 +449,24 @@ synchronies_spp$dist=dist.pairs$dist[match(synchronies_spp$site.pair, dist.pairs
 
 # add species trait specialization as of Ecology paper
 ```{r}
-synchronies_spp$mean.spec=sp.mean.spec$mean_specializ[match(synchronies_spp$Species, sp.mean.spec$species.names)]
+sp.mean.spec_Ecol=
+read.csv('sp.mean.spec_ecol.csv', row.names=1)
 ```
+
+
+```{r}
+synchronies_spp$mean.spec_Ec=sp.mean.spec_Ecol$mean_specializ[match(synchronies_spp$Species, rownames(sp.mean.spec_Ecol))]
+```
+
+#add the mean species synchrony overall
+```{r}
+synchronies_spp %>% 
+  group_by(Species) %>% 
+  mutate(mean.spp.synch=mean(synch))
+```
+
+
+
 
 
 
@@ -491,6 +558,7 @@ synchronies_spp %>%
 
 
 
+
 #######################################
 ## Imputation of missing species data
 ###########################
@@ -509,10 +577,11 @@ bugs.imp=
 bugs %>% 
         filter(!year %in% c('1981', '1982')) %>%
         filter(!Code %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% 
-        select( names(spp_site_occur[spp_site_occur>6]))
+        select( names(spp_site_occur[spp_site_occur>5]) & names(spp_year_occ[spp_year_occ>7]))
 )
 ```
-# Which sites in LB10?
+
+ Which sites in LB10?
 ```{r}
 site.occur %>% 
   as.data.frame() %>% 
@@ -922,13 +991,26 @@ rowSums(decostand(b.LI8.imp[,-c(1,2)], 'pa')), type='l')
 
 ## RBIND all imputed sites into one combined df
 *this LB10.imp, includes spp observed in >6 streams, to allow analysis of synchrony using wavelet methods*
-
+*NOTE, can adjust to include spp in >5 strams*
 ```{r}
 LB10.imp=rbind.data.frame(b.CI1.imp, b.CI2.imp, b.CI4.imp, b.CI5.imp, b.LI1.imp, b.LI2.imp, b.LI4.imp,
                           b.LI6.imp, b.LI7.imp, b.LI8.imp)
 
 rownames(LB10.imp)=paste(LB10.imp$Code, LB10.imp$year, sep="_")
 ```
+
+
+# *How many years for each species in the LB10.imp (some spp are present in <10y)*
+```{r}
+LB10.imp %>% 
+  select(-Code) %>% 
+  group_by(year) %>% summarise_all(sum) %>% 
+  select(-year) %>% 
+  decostand('pa') %>% 
+  colSums() %>% 
+  sort(decreasing = T)
+```
+
 
 
 # Before jumping into the wavelet method, let's see how imputing influence the overall mean pop synchrony
@@ -960,9 +1042,62 @@ for(spp in 1:length(speciesID.imp)) {
     }
   
 
-spp.list.corr[[12]]
+spp.list.corr.imp[[12]]
 
 ```
+# Derive the long format of *species synchrony with imputed values*
+*this is like the synchronies_spp but with imputed values from missing years-spp*
+```{r}
+synchronies_spp.imp=
+rbindlist(spp.list.corr.imp)
+
+synchronies_spp.imp=
+synchronies_spp.imp %>% 
+  filter(synch.imp != 1)
+
+#add column with site-pairs and species
+synchronies_spp.imp$site.pair_species=
+  paste(synchronies_spp.imp$site.pair, synchronies_spp.imp$Species, sep='_')
+```
+
+# add the nique site-pair and species combination for the synchronies_spp data (not the imputed)
+```{r}
+synchronies_spp$site.pair_species=
+  paste(synchronies_spp$site.pair, synchronies_spp$Species, sep='_')
+```
+
+# add the imputed species level synchronies to the synchronies_df (where there are info on dist, zonation trt)
+```{r}
+synchronies_spp$synch.imputed=
+  synchronies_spp.imp$synch.imp[match(synchronies_spp$site.pair_species, synchronies_spp.imp$site.pair_species)]
+```
+
+# Nice correlation between *imputed and observed synchrony for each species*
+```{r}
+synchronies_spp %>% 
+  ggplot()+aes(synch, synch.imputed)+geom_point()
+```
+
+
+```{r fig.width=5}
+synchronies_spp %>% 
+  ggplot()+aes(dist, synch.imputed)+geom_smooth()+theme_bw()+xlab('Geographic distance')+ylab('Population synchrony (cor)')
+
+```
+# I add here informationon streea, *LANDUSE* to the synchronies|_spp df. This is taken from the synchronies.comm df, where I added this info around line 1300
+```{r}
+synchronies_spp$LU_pair=synchronies.comm$LU_pair[match(synchronies_spp$site.pair, synchronies.comm$site.pair2)]
+```
+
+```{r}
+synchronies_spp %>% 
+  ungroup() %>% 
+  select(dist,synch.imputed, LU_pair) %>% 
+  filter(complete.cases(.)) %>% 
+  ggplot()+aes(dist, synch.imputed)+geom_smooth(aes(col=LU_pair), method='lm')+theme_bw()+xlab('Geographic distance')+ylab('Population synchrony (cor)')
+```
+
+
 
 # Create a list similar to spp.list.corr but as simple correlation matrix. Used for calculating the mean across species.
 
@@ -1004,16 +1139,247 @@ apply(array2.imp, c(1,2), mean, na.rm=T)
 corrplot(round(mean_spp_corr.mat.imp,2), method='color', type='lower', addCoef.col = "black", title = 'Mean pop synchrony (corr-imputed)', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
 ```
 
+####################################################
+# Run the population synchrony with *DETRENDED* timeseries (used to check relation between pop-synch and abundance trends)
+######################
+
+
+```{r}
+spp.list.corr.imp_detr<-list()
+
+for(spp in 1:length(speciesID.imp)) {
+  spp.list.corr.imp_detr[[spp]]= 
+  #speciesID.subs=as.factor(names(spp_site_occur[spp_site_occur>6]))
+  
+  sppcorr=
+  LB10.imp %>% 
+  select(Code, year, speciesID.imp[spp]) %>%  
+  spread(Code, value=speciesID.imp[spp]) %>% select(-year) %>% t() %>% 
+  cleandat(., time.lb10, clev=2) %>% .[[1]] %>% # cleandata by demeaning and detrending
+    synmat(., method='spearman', times=time.lb10) %>% #use the synmat function to get spearman corr
+  #cor(method='spearman') %>% 
+  gdata::unmatrix() %>% 
+  data.frame() %>% 
+  cbind(rep(speciesID.imp[spp], 1 )) %>% 
+    cbind(row.names(.)) %>% 
+  `colnames<-`(c('synch.imp_detr', 'Species','site.pair'))# use this function: `colnames<-` to assign column names within a pipe
+}
+
+
+spp.list.corr.imp_detr[[60]]
+```
+
+# make a long format df with the detrended population synchronies- to add to the synchronies_spp dataframe
+```{r}
+synchronies_spp.imp_detr=
+rbindlist(spp.list.corr.imp_detr)
+
+synchronies_spp.imp=
+synchronies_spp.imp %>% 
+  filter(synch.imp != 1)
+
+#add column with site-pairs and species
+synchronies_spp.imp_detr$site.pair_species=
+  paste(synchronies_spp.imp_detr$site.pair, synchronies_spp.imp_detr$Species, sep='_')
+```
+# add the detrended synchrony to the synchronies_spp
+```{r}
+synchronies_spp$synch.imputed_detr=
+  synchronies_spp.imp_detr$synch.imp_detr[match(synchronies_spp$site.pair_species, synchronies_spp.imp_detr$site.pair_species)]
+```
+# the relation between (imputed)synchrony and the detrended synchrony is odd
+```{r}
+plot(synchronies_spp$synch.imputed, synchronies_spp$synch.imputed_detr)
+```
+
+
+# add (to the synchronies_spp) the mean species synchrony based on detrended series
+```{r}
+synchronies_spp=
+synchronies_spp %>% 
+  group_by(Species) %>% 
+  mutate(mean.spp.synch_detr=mean(synch.imputed_detr))
+```
+
+```{r}
+synchronies_spp %>% 
+  ggplot()+aes(dist, synch.imputed_detr)+geom_smooth()+theme_bw()+xlab('Geographic distance')+ylab('Population synchrony (detr)')
+```
+# Add the *SITE_PAIR* mean spp synchrony to the synchronies_spp
+```{r}
+synchronies_spp=
+synchronies_spp %>% 
+  group_by(site.pair) %>% 
+  mutate(sitepair.synch.imp=mean(synch.imputed))
+```
 
 
 
 
+################################3
+# spatial beta div *as mean across years*
+```{r}
+
+array.beta=array(data=NA, dim=c(10,10,length(yearID.lb10)))
+dimnames(array.beta)=list(lb10.siteID, lb10.siteID)
+
+
+for(y in 1: length(yearID.lb10)){
+  array.beta[,,y]= LB10.imp %>% filter(year==yearID.lb10[y]) %>% select(-c(1,2)) %>% vegdist(diag=T, upper=T) %>% as.matrix() %>% as.vector()
+}
+
+
+mean.spat.beta=apply(array.beta, c(1,2), mean)
+
+iCAMP::dist.3col(as.dist(mean.spat.beta))
+
+```
+
+# Derive the metacom betadiv over years
+#plot of metacom betadiv over time
+```{r}
+lb10_beta_years=
+apply(array.beta, c(3), mean)
+
+lb10_BC_years=data.frame(metacom_beta=lb10_beta_years, year=yearID)
+
+lb10_BC_years %>% 
+  ggplot()+aes(year, metacom_beta, group=1)+geom_path()+theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+```
+# add the winter NAO to the metacom betadiv
+```{r}
+lb10_BC_years$wNAO=lb10.div$NAOw[match(lb10_BC_years$year, lb10.div$year)]
+```
+
+# plot metacom betadiv vs NAO *no effect of wNAO on metacom betadiv*
+```{r}
+lb10_BC_years %>% 
+  ggplot()+aes(wNAO, metacom_beta)+geom_point()
+```
+
+
+# *No evident effect of mean rain or mean #of wet days on metacom betadiv*
+```{r}
+cbind.data.frame(lb10_BC_years, lb10_wrain=lb10_mean_winter.rain$lb10.mean.w.r) %>% 
+  ggplot()+aes(lb10_wrain, metacom_beta)+geom_point()
+
+cbind.data.frame(lb10_BC_years, lb10_wetdays=lb10_mean_winter.rain$lb10.mean.wetday) %>% 
+  ggplot()+aes(lb10_wetdays, metacom_beta)+geom_point()+geom_smooth(method='lm')
+
+
+```
+
+
+
+# Convert the sptial betadiversity into distance pairs
+```{r}
+synchronies.comm=iCAMP::dist.3col(as.dist(mean.spat.beta))
+synchronies.comm$site.pair=paste(synchronies.comm$name1,synchronies.comm$name2, sep="_" )
+names(synchronies.comm)[3]='MeanBetadiv'
+
+```
+
+```{r}
+mean_spp_corr.mat.imp
+mean_spp_corr.mat.imp %>% as.dist() %>% iCAMP::dist.3col() %>% mutate(site.pair=paste(name1, name2, sep="_")) %>% pull(dis)
+
+
+
+```
+
+
+# Add different synchronies on the betadiv pairs
+```{r}
+synchronies.comm$mean.spp.synch= 
+  mean_spp_corr.mat.imp %>% as.dist() %>% iCAMP::dist.3col() %>% mutate(site.pair=paste(name1, name2, sep="_")) %>% pull(dis)
+```
+
+```{r}
+synchronies.comm
+```
+
+
+
+# *Plot of mean spp synchrony vs mean betadiv between sites*
+```{r fig.width=5}
+synchronies.comm %>% 
+  ggplot()+aes(MeanBetadiv, mean.spp.synch, label=site.pair)+geom_point()+geom_text_repel(size=2.5)+
+  geom_smooth(method = 'lm')+ylab('Mean pop. synchrony')
+
+synchronies.comm %>% 
+  ggplot()+aes(geodist, MeanBetadiv)+geom_point()+geom_smooth()
+
+synchronies.comm %>% 
+  ggplot()+aes( geodist, mean.spp.synch,label=site.pair)+geom_point()+geom_text_repel(size=2.5)+
+  geom_smooth()+ylab('Mean stream-pair synchrony')
+
+
+```
+# Add info on the stream and *stream-pair landuse* to the synchronies.comm df
+```{r}
+synchronies.comm$site1_LU=
+if_else(synchronies.comm$name1 %in% c('CI1', 'CI2','CI4', 'C5'), 'AM', 
+        if_else(synchronies.comm$name1 %in% c('LI1', 'LI2', 'LI4', 'LI8' ), 'AF', 'NM'))
+
+
+synchronies.comm$site2_LU=
+if_else(synchronies.comm$name2 %in% c('CI1', 'CI2','CI4', 'C5'), 'AM', 
+        if_else(synchronies.comm$name1 %in% c('LI1', 'LI2', 'LI4', 'LI8' ), 'AF', 'NM'))
+
+synchronies.comm$LU_pair=
+if_else(synchronies.comm$site1_LU==synchronies.comm$site2_LU, 'Same_LU', 'Diff_LU')
+
+```
+# Plot synchrony decay for site:pair with distance, separated by landuse pair
+```{r}
+synchronies.comm %>% 
+  ggplot()+aes( geodist, mean.spp.synch,label=site.pair)+geom_point(aes(col=LU_pair))+geom_text_repel(size=2.5)+
+  geom_smooth(method='lm',aes(col=LU_pair), alpha=.2)+ylab('Mean stream-pair synchrony')
+
+synchronies.comm %>% 
+  ggplot()+aes( MeanBetadiv, mean.spp.synch,label=site.pair)+geom_point(aes(col=LU_pair))+geom_text_repel(size=2.5)+
+  geom_smooth(method='lm',aes(col=LU_pair))+ylab('Mean stream-pair synchrony')
+
+
+synchronies.comm %>% 
+  ggplot()+aes(LU_pair, MeanBetadiv)+geom_boxplot() 
+```
+
+
+
+# Model of mean synchrony vs geodistance and betadiversity (using the synchrony comm data)
+*should add the chemical sychrony or distance as additional*
+```{r}
+summary(lm(mean.spp.synch ~ MeanBetadiv* geodist, data=synchronies.comm))
+```
+
+# Add mean beatdiv to the synchrony_spp to plot Popul synch vs betadiv (not just the mean spp synch in each site pair)
+```{r}
+synchronies_spp$meanBetadiv=synchronies.comm$MeanBetadiv[match(synchronies_spp$site.pair, synchronies.comm$site.pair2)]
+```
+
+```{r}
+synchronies_spp %>% 
+  ggplot()+aes(meanBetadiv, synch.imputed)+geom_smooth()+ylab('Population synchrony')
+
+```
+# model of mean betadiv abd geodist vs synchrony imputed (using the large all spp data)
+```{r}
+summary(lm(synch.imputed ~ meanBetadiv* dist, data=synchronies_spp))
+```
 
 
 
 #################################################################################
 # Wish to derive some *dynamic metrics* regarding changes in composition *ext-imm, rank shift etc.* 
 These metrics however reflect a delta so there is T-1 years available (if T = all years)
+
+```{r}
+siteID_AcMoor=c('CI1', 'CI2', 'CI4','CI5')
+siteID_AcFor=c('LI1','LI2','LI4','LI8')
+
+siteID_NeutMoor=c('LI5','LI6','LI7')
+```
 
 
 # create a vector of year for lb10 imputed
@@ -1030,6 +1396,11 @@ for (delta in 1:length(yearID.lb10-1)){
   deltamat[delta,]=paste(yearID.lb10[delta], yearID.lb10[delta+1], sep='_')
 }
 ```
+
+```{r}
+library(adespatial)
+```
+
 
 # the for loop to get TBI values for each year-to-year variation
 ```{r}
@@ -1134,6 +1505,48 @@ for(s in 1:length(lb10.siteID)){
 
 ```
 
+# PLot the trends in year-to-year bray curtis for each stream
+```{r fig.width=7.5}
+cbind(t(TBI.bc), time.delta) %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols=c(1:10)) %>% 
+  ggplot()+aes(time.delta,value)+geom_path()+facet_wrap(~name)+ggtitle('Relative year-to-year bray-curtis')+
+  ylab(NULL)+xlab(NULL)+theme_bw()
+```
+
+# *Some evidence that increase year-to-year bray curtis is associated with positive sNAO phases (3 pre winters)*
+```{r}
+cbind(t(TBI.bc), time.delta, sNAO=smoothNAOw %>% filter(winter.year %in% c(1986:2018)) %>% pull(sNAO)) %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols=c(1:10)) %>% 
+  ggplot()+aes(sNAO, value)+geom_point(aes(col=time.delta))+geom_smooth(method='lm')+scale_color_gradient(high='darkblue', low='gold3')+    facet_wrap(~name)
+
+```
+# *Some evidence that increase year-to-year bray curtis is associated with positive winter NAO phases*
+```{r}
+cbind(t(TBI.bc), time.delta, wNAO=NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1986:2018)) %>% pull(mean.nao)) %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols=c(1:10)) %>% 
+  ggplot()+aes(wNAO, value)+geom_point(aes(col=time.delta))+scale_color_gradient(high='darkblue', low='gold3')+
+  geom_smooth(method='lm')+facet_wrap(~name)+ylab('Year-to-year Bray-Curtis')
+```
+# Plot overall BrayCurtis (mean across sites) vs wNAO
+```{r}
+cbind.data.frame(mean.BC=rowMeans(t(TBI.bc)), time.delta, deltamat=deltamat,  wNAO=NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1986:2018)) %>% pull(mean.nao)) %>% 
+  ggplot()+aes(wNAO, mean.BC, label=deltamat)+geom_point()+geom_text_repel(size=3)+geom_smooth()
+```
+# Plot of 
+```{r}
+cbind.data.frame(mean.BCloss=rowMeans(t(TBI.loss)), time.delta, deltamat=deltamat,  wNAO=NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1986:2018)) %>% pull(mean.nao)) %>% 
+  ggplot()+aes(wNAO, mean.BCloss, label=deltamat)+geom_point()+geom_text_repel(size=3)+geom_smooth(method='lm')
+
+
+cbind.data.frame(mean.BCgain=rowMeans(t(TBI.gain)), time.delta, deltamat=deltamat,  wNAO=NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1986:2018)) %>% pull(mean.nao)) %>% 
+  ggplot()+aes(wNAO, mean.BCgain, label=deltamat)+geom_point()+geom_text_repel(size=3)+geom_smooth(method='lm')
+
+```
+
+
 
 # TBI.loss (incidence based) *ext-imm*
 ```{r}
@@ -1147,6 +1560,43 @@ for(s in 1:length(lb10.siteID)){
 }
 
 ```
+
+
+# PLot the trends in *year-to-year extinctions* for each stream
+```{r fig.width=7.5}
+cbind(t(TBI.loss.pa), time.delta) %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols=c(1:10)) %>% 
+  ggplot()+aes(time.delta,value)+geom_path()+facet_wrap(~name)+ggtitle('Relative year-to-year extinctions')
+```
+
+
+# some relations between *extinctions* and smooth NAO winter as scatterplot
+```{r}
+cbind(t(TBI.loss.pa), time.delta, sNAO=smoothNAOw %>% filter(winter.year %in% c(1986:2018)) %>% pull(sNAO)) %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols=c(1:10)) %>% 
+  ggplot()+aes(sNAO, value)+geom_point(aes(col=time.delta))+scale_color_gradient(high='darkblue', low='gold3')+
+  geom_smooth(method='lm')+facet_wrap(~name)
+
+```
+
+
+# Plot mean extinctions (across sites) vs NAO 
+*smooth NAO has effect on extinctions but not significant*
+```{r}
+cbind.data.frame(mean.ext=rowMeans(t(TBI.loss.pa)), time.delta, deltamat=deltamat,  wNAO=NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1986:2018)) %>% pull(mean.nao)) %>% 
+  ggplot()+aes(wNAO, mean.ext, label=deltamat)+geom_point()+geom_text_repel(size=3)+geom_smooth(method='lm')
+
+cbind.data.frame(mean.ext=rowMeans(t(TBI.loss.pa)), time.delta, deltamat=deltamat,  smNAO=smoothNAOw %>% filter(winter.year %in% c(1986:2018)) %>% pull(sNAO)) %>% 
+  ggplot()+aes(smNAO, mean.ext, label=deltamat)+geom_point()+geom_text_repel(size=3)+geom_smooth(method='lm')
+
+
+
+cbind.data.frame(mean.ext=rowMeans(t(TBI.loss.pa)), time.delta, deltamat=deltamat,  smNAO=smoothNAOw %>% filter(winter.year %in% c(1986:2018)) %>% pull(sNAO)) %>% lm(mean.ext~smNAO, data=.) %>% summary()
+```
+
+
 
 # TBI.gain (incidence based) *ext-imm*
 ```{r}
@@ -1176,6 +1626,42 @@ for(s in 1:length(lb10.siteID)){
 
 
 
+# Not strong effect of wNAO on immigration
+```{r}
+cbind(t(TBI.gain.pa), time.delta, wNAO=NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1986:2018)) %>% pull(mean.nao)) %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols=c(1:10)) %>% 
+  ggplot()+aes(wNAO, value)+geom_point(aes(col=time.delta))+scale_color_gradient(high='darkblue', low='gold3')+
+  geom_smooth(method='lm')+facet_wrap(~name)+ylab('Year-to-year immigration')
+
+
+cbind.data.frame(mean.imm=rowMeans(t(TBI.gain.pa)), time.delta, deltamat=deltamat,  wNAO=NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1986:2018)) %>% pull(mean.nao)) %>% 
+  ggplot()+aes(wNAO, mean.ext, label=deltamat)+geom_point()+geom_text_repel(size=3)+geom_smooth(method='lm')
+
+
+
+cbind.data.frame(mean.imm=rowMeans(t(TBI.gain.pa)), time.delta, deltamat=deltamat,  smNAO=smoothNAOw %>% filter(winter.year %in% c(1986:2018)) %>% pull(sNAO)) %>% 
+  ggplot()+aes(smNAO, mean.imm, label=deltamat)+geom_point()+geom_text_repel(size=3)+geom_smooth(method='lm')
+
+
+cbind.data.frame(mean.imm=rowMeans(t(TBI.gain.pa)), time.delta, deltamat=deltamat,  smNAO=smoothNAOw %>% filter(winter.year %in% c(1986:2018)) %>% pull(sNAO)) %>% lm(mean.imm~smNAO, data=.) %>% summary()
+
+```
+
+
+
+
+
+ PLot the trends in *year-to-year extinctions* for each stream
+```{r fig.width=7.5}
+cbind(t(1-TBI.jac.pa), time.delta) %>% 
+  as.data.frame() %>% 
+  filter(time.delta<2000) %>% 
+  pivot_longer(cols=c(1:10)) %>% 
+  ggplot()+aes(time.delta,value)+geom_path()+facet_wrap(~name)+ggtitle('Relative year-to-year J')
+```
+
+
 
 # Create a time factor reflecting the deltas for lb10.imp
 ```{r}
@@ -1195,6 +1681,17 @@ for(stream in 2:dim(t_TBI.loss)[1]){
   lines((time.delta), t_TBI.loss[stream,]/6+stream, type='o')
 }
 ```
+
+
+# the coords for the lb10 sites
+```{r}
+coordsLB10=LB.coords_ISA %>% filter(Site %in% lb10.siteID)
+```
+
+
+
+
+###############################################
 
 
 # *Wavelet pahsor mean field for TBI  metrics*
@@ -1234,6 +1731,15 @@ t_TBI.bc=wsyn::cleandat(as.matrix(TBI.bc), (time.delta), clev=4)$cdat
 phas_TBI.bc=wsyn::wpmf(t_TBI.bc,(time.delta) , sigmethod = 'quick')
 plotmag(phas_TBI.bc, title='Wavelet phasor mean filed - TBI.Bray-Curtis')
 ```
+#Mean phasor for TBI bray-curtis for each stream landuse
+```{r}
+plotmag(wsyn::wpmf(t_TBI.bc[rownames(t_TBI.bc) %in% siteID_AcMoor,],(time.delta) , sigmethod = 'quick'), title='wpmf AcMoor TBI-BC')
+
+plotmag(wsyn::wpmf(t_TBI.bc[rownames(t_TBI.bc) %in% siteID_AcFor,],(time.delta) , sigmethod = 'quick'), title='wpmf AcFor TBI-BC')
+
+plotmag(wsyn::wpmf(t_TBI.bc[rownames(t_TBI.bc) %in% siteID_NeutMoor,],(time.delta) , sigmethod = 'quick'), title='wpmf NeutFor TBI-BC')
+```
+
 
 
 
@@ -1247,7 +1753,7 @@ Wpahsor mean field for TBI loss.pa
 *Extinctions (TBI incidence) shows different patterns, with strong synch early on*
 ```{r}
 phas_TBI.loss.pa=wsyn::wpmf(t_TBI.loss.pa,(time.delta) , sigmethod = 'quick')
-plotmag(phas_TBI.loss.pa, title='Wavelet phasor mean filed - TBI.loss.pa')
+plotmag(phas_TBI.loss.pa, title='Wavelet phasor mean filed - TBI.extinctions')
 ```
 
 
@@ -1279,15 +1785,1034 @@ plotmag(phas_TBI.jac, title='Wavelet phasor mean filed - TBI.Jaccard')
 ```
 
 
+
+
+
+
+# *Simple correlation and ReXWT for the TBI metrics*
+# spearman cor for TBI extinctions
+```{r}
+TBI.loss.pa.cor=synmat(t_TBI.loss.pa, time.delta, method='spearman')
+dimnames(TBI.loss.pa.cor)
+```
+
+# TBI loss.pa ReXWT 4-6 years
+```{r}
+TBI.loss.pa.5=synmat(t_TBI.loss.pa, time.delta, method='ReXWT', tsrange=c(4,6))
+dimnames(TBI.loss.pa.5)=dimnames(TBI.loss.pa.cor)
+
+
+```
+
+# spearman synch for TBI.gains.pa
+```{r}
+TBI.gain.pa.cor=synmat(t_TBI.gain.pa, time.delta, method='spearman')
+```
+
+
+
+#Plot the simple corr for TBI.loss.pa 
+```{r}
+corrplot(TBI.loss.pa.cor, method='color', type='lower', addCoef.col = "black", title = 'TBI loss pa', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+```
+
+#Plot the ReXWT 4-6y corr for TBI.loss.pa 
+*at the 4-6 years timescale there are some stronger synch and negative synch in extinctions*
+```{r}
+corrplot(TBI.loss.pa.5, method='color', type='lower', addCoef.col = "black", title = 'TBI loss pa 4-6y', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+```
+
+# Correlation for overall TBI bray curtis
+
+# spearman cor for TBI BC
+```{r}
+TBI.bc.cor=synmat(t_TBI.bc, time.delta, method='spearman')
+dimnames(TBI.bc.cor)
+```
+
+# TBI bray curtis ReXWT 4-6 years
+```{r}
+TBI.bc.5=synmat(t_TBI.bc, time.delta, method='ReXWT', tsrange=c(4,6))
+dimnames(TBI.bc.5)=dimnames(TBI.bc.cor)
+
+```
+
+
+#Plot the simple corr for TBI. bray curtis
+```{r}
+corrplot(TBI.bc.cor, method='color', type='lower', addCoef.col = "black", title = 'TBI BC corr', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+```
+
+#Plot the synchrony ReXWT (4-6y) for TBI. bray curtis
+```{r}
+corrplot(TBI.bc.5, method='color', type='lower', addCoef.col = "black", title = 'TBI BC 4-6y', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+```
+
+# Add the TBI metrics synchrony to the Mean Betadiv site pairs df
+```{r}
+synchronies.comm$TBI.BC.synch= 
+  TBI.bc.cor %>% as.dist() %>% iCAMP::dist.3col() %>% mutate(site.pair=paste(name1, name2, sep="_")) %>% pull(dis)
+
+
+synchronies.comm$TBI.ext.synch= 
+  TBI.loss.pa.cor %>% as.dist() %>% iCAMP::dist.3col() %>% mutate(site.pair=paste(name1, name2, sep="_")) %>% pull(dis)
+
+synchronies.comm$TBI.imm.synch= 
+  TBI.gain.pa.cor %>% as.dist() %>% iCAMP::dist.3col() %>% mutate(site.pair=paste(name1, name2, sep="_")) %>% pull(dis)
+
+
+```
+
+# *Plot of betadiv vs extinction synchrony*
+```{r fig.width=5}
+synchronies.comm %>% 
+  ggplot()+aes(MeanBetadiv, TBI.BC.synch)+geom_point()+geom_smooth()
+
+synchronies.comm %>% 
+  ggplot()+aes(MeanBetadiv, TBI.ext.synch)+geom_point()+geom_smooth(method='lm')
+
+synchronies.comm %>% 
+  ggplot()+aes(MeanBetadiv, TBI.imm.synch, label=site.pair)+geom_text_repel(size=2)+ geom_point()+geom_smooth(method='lm')
+
+```
+#add geodist to the synchrony community
+
+```{r}
+synchronies.comm$site.pair2=paste(synchronies.comm$name1, synchronies.comm$name2, sep = ':')
+```
+
+```{r}
+synchronies.comm$geodist=synchronies_spp$dist[match(synchronies.comm$site.pair2, synchronies_spp$site.pair)]
+```
+# Decay plot of synchrony in TBI metrics with distance.
+```{r fig.width=5, fig.height=4}
+synchronies.comm %>% select(c(4,6,7,8,10)) %>% 
+  pivot_longer(cols=c(2:4)) %>% 
+  ggplot()+aes(geodist, value)+geom_smooth(aes(col=name), method = 'lm', alpha=.2)+scale_color_manual(values=c('blue', 'red', 'darkgreen'))+
+  ylab('Synchrony')+theme(legend.title = element_blank(), legend.position = 'top')
+```
+
+
+
+
+# test *for modularity in TBI braycurtis metrics year-to-year*
+
+```{r}
+cl.TBI.bc.cor=wsyn::clust(dat=t_TBI.bc, times=time.delta, coords=coordsLB10,
+           method="pearson")
+```
+
+
+# test *for modularity in TBI extinctions metrics year-to-year*
+
+```{r}
+cl.TBI.extinct.cor=wsyn::clust(dat=t_TBI.loss.pa, times=time.delta, coords=coordsLB10,
+           method="pearson")
+```
+
+# add the modules ID and the weight to the clusters from TBI metrics
+```{r}
+coordsLB10$mod.TBI.bc.cor=as.factor(cl.TBI.bc.cor$clusters[[2]])
+coordsLB10$w.TBI.bc.cor=cl.TBI.bc.cor$modres[[2]]$nodeQ
+
+coordsLB10$mod.TBI.extinct.cor=as.factor(cl.TBI.extinct.cor$clusters[[2]])
+coordsLB10$w.TBI.extinct.cor=cl.TBI.extinct.cor$modres[[2]]$nodeQ
+```
+
+# Plot clusters for bray curtis overall
+```{r}
+coordsLB10 %>% 
+     ggplot()+aes(X, Y, label=Site)+geom_point(aes(size=w.TBI.bc.cor, col=mod.TBI.bc.cor))+
+  theme_bw()+coord_fixed()+   ggtitle('Modules Bray-Curtis synchrony')+theme(title=element_text(size=8), legend.position = 'none')+
+   geom_text_repel(data=LB.coords, aes(x=X, y=Y, label=Site), size=2.7)+geom_point(data=LB.coords, aes(x=X, y=Y), col='grey50', size=0.7, shape=3)
+```
+# plot cluster for extinction synchrony (rather diff than overall bray curtis)
+```{r}
+coordsLB10 %>% 
+     ggplot()+aes(X, Y)+geom_point(aes(size=w.TBI.extinct.cor, col=mod.TBI.extinct.cor))+theme_bw()+coord_fixed()+
+   ggtitle('Modules extinctions synchrony')+theme(title=element_text(size=8), legend.position = 'none')+
+   geom_text_repel(data=LB.coords, aes(x=X, y=Y, label=Site), size=2.7)+geom_point(data=LB.coords, aes(x=X, y=Y), col='grey50', size=0.7, shape=3)
+```
+
+
+
 ###############################################
 #### Simple *coherence test* between NOAw and TBI metrics
-
+*for winter data (both NAO or chem PC1), for a bio change btween e.g. 85-96 we assume NAO winter (96 i.e oct-mar) are influencial*
 ```{r}
 deltamat[,1]
 
 # this is the timeframe of winter NAO matchin the delta year-to-year TBI metrics
-ts.NAOw$cdat[6:37]
+ts.NAOw$cdat[6:38]
 timesNAOw[6:38]
 ```
 
+
+
+# expand the winter NAO to all sites (for coherence test)
+```{r}
+NAOw_86.18.exp=as.data.frame(matrix(nrow = 10, ncol=33))
+rownames(NAOw_86.18.exp)=unique(LB10.imp$Code)
+names(NAOw_86.18.exp)=timesNAOw[6:38]
+NAOw_86.18.exp
+
+
+for(s in 1:length(lb10.siteID)){
+NAOw_86.18.exp[s,]=ts.NAOw$cdat[6:38]
+}
+```
+# Clean winter NAO ts for coherence
+```{r}
+ t_NAOw_86.18.exp= wsyn::cleandat(as.matrix(NAOw_86.18.exp), (timesNAOw[6:38]), clev=4)$cdat
+```
+
+
+# test coherence between winter NAO and TBI.loss
+
+```{r}
+coh.NAOw_TBIloss=coh(as.matrix(t_NAOw_86.18.exp), as.matrix(t_TBI.loss), 
+                     timesNAOw[6:38],  norm='powall', sigmethod = 'fast', nrand = 10000)
+```
+
+```{r}
+plotmag (coh.NAOw_TBIloss)
+```
+
+# test coherence between winter NAO and TBI.gains
+*No coherence with gains*
+```{r}
+coh.NAOw_TBIgain=coh(as.matrix(t_NAOw_86.18.exp), as.matrix(t_TBI.gain), 
+                     timesNAOw[6:38],  norm='powall', sigmethod = 'fast', nrand = 10000)
+```
+
+```{r}
+plotmag(coh.NAOw_TBIgain)
+```
+
+
+# test coherence between winter NAO and TBI.bray curtsi overall
+*significant coherence between overall year ot year BrayCurtis and NAOw over the 4-6 years*
+```{r}
+coh.NAOw_TBI.bc=coh(as.matrix(t_NAOw_86.18.exp), as.matrix(t_TBI.bc), 
+                     timesNAOw[6:38],  norm='powall', sigmethod = 'fast', nrand = 10000)
+```
+
+#phase coherence provide similar stuff (must read more)
+```{r}
+pcoh.NAOw_TBI.bc=coh(as.matrix(t_NAOw_86.18.exp), as.matrix(t_TBI.bc), 
+                     timesNAOw[6:38],  norm='phase',sigmethod="fftsurrog1",  nrand = 100)
+```
+
+
+
+```{r}
+plotmag(coh.NAOw_TBI.bc)
+coh.NAOw_TBI.bc= bandtest(coh.NAOw_TBI.bc, c(4,6))
+#coh.NAOw_TBI.bc= bandtest(coh.NAOw_TBI.bc, c(6,8))
+get_bandp(coh.NAOw_TBI.bc)
+plotphase(coh.NAOw_TBI.bc)
+```
+
+# Coherence between winter NAO and bray-curtis for each stream type
+*No coherence for AcidForest streams with wNAO, but present in other stream types*
+```{r}
+coh.NAOw_TBI.bc.acfor=
+coh(as.matrix(t_NAOw_86.18.exp[rownames(t_NAOw_86.18.exp) %in% siteID_AcFor,]), 
+    as.matrix(t_TBI.bc[rownames(t_NAOw_86.18.exp) %in% siteID_AcFor,]),                      
+    timesNAOw[6:38],  norm='powall', sigmethod = 'fast', nrand = 10000)
+
+coh.NAOw_TBI.bc.acfor=bandtest(coh.NAOw_TBI.bc.acfor, c(4,6))
+plotmag(coh.NAOw_TBI.bc.acfor)
+
+coh.NAOw_TBI.bc.acmoor=
+coh(as.matrix(t_NAOw_86.18.exp[rownames(t_NAOw_86.18.exp) %in% siteID_AcMoor,]), 
+    as.matrix(t_TBI.bc[rownames(t_NAOw_86.18.exp) %in% siteID_AcMoor,]),                      
+    timesNAOw[6:38],  norm='powall', sigmethod = 'fast', nrand = 10000)
+
+coh.NAOw_TBI.bc.acmoor=bandtest(coh.NAOw_TBI.bc.acmoor, c(4,6))
+plotmag(coh.NAOw_TBI.bc.acmoor)
+
+coh.NAOw_TBI.bc.neutfor=
+coh(as.matrix(t_NAOw_86.18.exp[rownames(t_NAOw_86.18.exp) %in% siteID_NeutMoor,]), 
+    as.matrix(t_TBI.bc[rownames(t_NAOw_86.18.exp) %in% siteID_NeutMoor,]),                      
+    timesNAOw[6:38],  norm='powall', sigmethod = 'fast', nrand = 10000)
+
+coh.NAOw_TBI.bc.neutfor=bandtest(coh.NAOw_TBI.bc.neutfor, c(4,6))
+plotmag(coh.NAOw_TBI.bc.neutfor)
+
+
+```
+
+
+
+
+# test coherence between winter NAO and TBI.loss *incidence base* extinctions
+
+```{r}
+coh.NAOw_TBIloss.pa=coh(as.matrix(t_NAOw_86.18.exp), as.matrix(t_TBI.loss.pa), 
+                     timesNAOw[6:38],  norm='powall', sigmethod = 'fast', nrand = 10000)
+```
+
+# *some coherence at 4-6 timescales between wNAO and extinctions*
+```{r}
+plotmag(coh.NAOw_TBIloss.pa)
+coh.NAOw_TBIloss.pa= bandtest(coh.NAOw_TBIloss.pa, c(5,6))
+coh.NAOw_TBIloss.pa= bandtest(coh.NAOw_TBIloss.pa, c(4,6))
+
+get_bandp(coh.NAOw_TBIloss.pa)
+```
+# test coherence between winter NAO and TBI.gains *incidence base* colonisations
+
+```{r}
+coh.NAOw_TBIgain.pa=coh(as.matrix(t_NAOw_86.18.exp), as.matrix(t_TBI.gain.pa), 
+                     timesNAOw[6:38],  norm='powall', sigmethod = 'fast', nrand = 10000)
+```
+
+
+```{r}
+plotmag(coh.NAOw_TBIgain.pa)
+coh.NAOw_TBIgain.pa= bandtest(coh.NAOw_TBIgain.pa, c(5,6))
+coh.NAOw_TBIgain.pa= bandtest(coh.NAOw_TBIgain.pa, c(4,6))
+
+get_bandp(coh.NAOw_TBIgain.pa)
+```
+
+
+
+
+################################################
+# can test the coherence and correlation with the 6 sites *PC1 timeseries*
+
+
+# the siteID for the PC1 data (6 sites)
+*the site LI5 is not present in Bio data*
+```{r}
+chem.sitesID=c('LI1','LI4', 'LI5', 'LI6', 'CI2', 'CI4')
+
+chem.sitesID.bio=c('LI1','LI4', 'LI6', 'CI2', 'CI4')
+```
+
+# which sites are common across BIO and CHEMIcal?
+# *Plot of year-to-year Bray Curtis vs the chemical PC1 86-18*
+*some relations are evident, but hard to interpret PC1 values per se, and how they relate to biotic changes*
+```{r}
+
+cbind.data.frame(
+t(TBI.bc[match(chem.sitesID.bio,rownames(TBI.bc)) ,]) %>% as.data.frame() %>% 
+  pivot_longer(cols=c(1:5), values_to = 'TBI.bc', names_to = 'Code') ,
+
+Compl.comm.PC1 %>% filter(Season=='Winter') %>% filter(year %in% time.delta) %>% select(-PC1.LI5) %>% 
+  pivot_longer(cols=c(3:7) , values_to = 'PC1')) %>% 
+  ggplot()+aes(PC1, TBI.bc)+geom_point()+geom_smooth(method='lm')+facet_wrap(~name)
+
+```
+
+# The deltas in PC1 chem year-to-year
+```{r}
+Compl.comm.PC1 %>% filter(Season=='Winter') %>% filter(year %in% c(1985:2018)) %>% select(c(3,4,6,7,8)) %>% as.matrix() %>% diff()
+```
+
+# *No evident correlation between community variability (BC) and PC1 chemistry delta (year-to-year)*
+```{r}
+cbind.data.frame(
+t(TBI.bc[match(chem.sitesID.bio,rownames(TBI.bc)) ,]) %>% as.data.frame() %>% 
+  pivot_longer(cols=c(1:5), values_to = 'TBI.bc', names_to = 'Code'), 
+  
+ deltamat,
+
+ Compl.comm.PC1 %>% filter(Season=='Winter') %>% filter(year %in% c(1985:2018)) %>% select(c(3,4,6,7,8)) %>% as.matrix() %>% diff() %>% 
+  as.data.frame() %>% pivot_longer(cols=c(1:5), values_to = 'PC1.delta')
+) %>% 
+  ggplot()+aes(PC1.delta, TBI.bc, label=deltamat)+geom_point(size=1)+
+  geom_text_repel(size=2)+geom_smooth(method='lm')+facet_wrap(~name, scales='free')
+
+```
+
+```{r}
+Compl.comm.PC1 %>% filter(Season=='Winter') %>% filter(year %in% c(1985:2018)) %>% select(c(3,4,5,6,7,8)) %>% as.matrix() %>% diff() %>% 
+  as.data.frame() %>% pairs(panel=panel.smooth)
+
+Compl.comm.PC1 %>% filter(Season=='Winter') %>% filter(year %in% c(1985:2018)) %>% select(c(3,4,5,6,7,8)) %>% 
+  as.data.frame() %>% pairs(panel=panel.smooth)
+
+```
+
+
+
+
+*apparently no coherence between either summer or winter PC1 and TBI metrics*
+
+# the summer PC1 for the 33 years used in TBI deltas
+*will use summer data 1985-2017 assuming that in the bio change 85-86 the summer chem data of 1985 (april-sept) are involved*
+```{r}
+
+t_compl.comm.PC1.s[,c(5:37)]
+time2[c(5:37)]
+
+```
+
+#clean again the *PC1 summer* data for subset of delta years from TBI metrics
+*NOTE, LI5 is missing in BIO data, so when running coherence I should remove the stream (row 3)
+```{r}
+t_compl.comm.PC1.s_85_17=cleandat(as.matrix(t_compl.comm.PC1.s[,c(5:37)]),time2[c(5:37)] , clev=4)$cdat
+
+# remove
+t_compl.comm.PC1.s_85_17[-3,]
+```
+
+
+
+
+# this is how to order the TBI data to match PC1 data for coherence
+
+```{r}
+t_TBI.bc[match(chem.sitesID.bio,rownames(t_TBI.bc)) ,]
+
+
+```
+
+# Coherence test TBI bray curtsi vs PC1 chem summer
+*must remove the row 3 in PC1 data (LI5 not present in bio) and match the bio data with chem PC1 data*
+```{r}
+coh.PC1s_TBIbc=coh(as.matrix(t_compl.comm.PC1.s_85_17[-3,]), as.matrix(t_TBI.bc[match(chem.sitesID.bio,rownames(t_TBI.bc)) ,]), 
+                     time2[c(5:37)],  norm='powall', sigmethod = 'fast', nrand = 10000)
+```
+
+# *No coherence between summer PC1 chem and bray-curtis year-to-year*
+```{r}
+plotmag(coh.PC1s_TBIbc)
+
+coh.PC1s_TBIbc=bandtest(coh.PC1s_TBIbc, c(4,6))
+coh.PC1s_TBIbc=bandtest(coh.PC1s_TBIbc, c(5,6))
+
+
+get_bandp(coh.PC1s_TBIbc)
+```
+
+#clean again the *PC1 winter* data for subset of delta years from TBI metrics
+*Contrary to summer case, will use the time 86-18, assuming the changes in 85-86 are related to winter chem in 86 (oct-march) before sample*
+```{r}
+t_compl.comm.PC1.w_85_17=cleandat(as.matrix(t_compl.comm.PC1.w[,c(6:38)]),time2[c(6:38)] , clev=4)$cdat
+
+time2[c(6:38)]
+```
+
+
+# Coherence test TBI bray curtsi vs PC1 chem winter (use 86-18 time, as oppose to summer where it was 85-17)
+```{r}
+coh.PC1w_TBIbc=coh(as.matrix(t_compl.comm.PC1.w_85_17[-3,]), as.matrix(t_TBI.bc[match(chem.sitesID.bio,rownames(t_TBI.bc)) ,]), 
+                     time2[c(6:38)],  norm='powall', sigmethod = 'fast', nrand = 10000)
+```
+
+# *apparent but not sig coherence of year-to-year bray-curtis with winter chemistry*
+```{r}
+plotmag(coh.PC1w_TBIbc)
+
+coh.PC1w_TBIbc=bandtest(coh.PC1w_TBIbc, c(5,6))
+coh.PC1w_TBIbc=bandtest(coh.PC1w_TBIbc, c(6,7))
+
+
+get_bandp(coh.PC1w_TBIbc)
+```
+
+
+# Coherence test TBIloss. pa (extinction) vs PC1 chem summer (use 85-17)
+```{r}
+coh.PC1s_TBIloss.pa=coh(as.matrix(t_compl.comm.PC1.s_85_17[-3,]), as.matrix(t_TBI.bc[match(chem.sitesID.bio,rownames(t_TBI.bc)),]), 
+                     time2[c(5:37)],  norm='powall', sigmethod = 'fast', nrand = 10000)
+```
+
+# *no evident coherence btw summer PC1 and extinctions*
+```{r}
+plotmag(coh.PC1s_TBIloss.pa)
+
+coh.PC1s_TBIloss.pa=bandtest(coh.PC1s_TBIloss.pa, c(6,8))
+coh.PC1s_TBIloss.pa=bandtest(coh.PC1s_TBIloss.pa, c(6,7))
+
+
+ get_bandp(coh.PC1s_TBIloss.pa)
+```
+
+
+# Coherence test TBIloss. pa (extinction) vs PC1 chem winter (use 86-18)
+```{r}
+coh.PC1w_TBIloss.pa=coh(as.matrix(t_compl.comm.PC1.w_85_17[-3,]), as.matrix(t_TBI.bc[match(chem.sitesID.bio,rownames(t_TBI.bc)),]), 
+                     time2[c(6:38)],  norm='powall', sigmethod = 'fast', nrand = 10000)
+```
+
+*No coherence with winter PC1 chem for extinction either*
+```{r}
+plotmag(coh.PC1w_TBIloss.pa)
+
+coh.PC1w_TBIloss.pa=bandtest(coh.PC1w_TBIloss.pa, c(6,7))
+coh.PC1w_TBIloss.pa=bandtest(coh.PC1w_TBIloss.pa, c(5,6))
+```
+
+
+#### *Test which year contributed most to the year-to-year variation (BC and extinctions)*
+
+```{r}
+TBI.bc # the bray curtis variation
+time.delta # the year
+```
+# calculate drop in synchrony after removing a given year
+```{r}
+drop.synch.TBIbc=as.data.frame(matrix(ncol=3, nrow=33))
+names(drop.synch.TBIbc)=c('TBIbc', 'TBIbc.pa', 'TIBI.loss.pa')
+rownames(drop.synch.TBIbc)=time.delta
+
+
+for(y in 1:length(time.delta)){
+  drop.synch.TBIbc[y,1]=mean(cor(t(TBI.bc[,-y]), method='spearman'))
+}
+
+for(y in 1:length(time.delta)){
+  drop.synch.TBIbc[y,2]=mean(cor(t(TBI.jac.pa[,-y]), method='spearman'))
+}
+
+for(y in 1:length(time.delta)){
+  drop.synch.TBIbc[y,3]=mean(cor(t(TBI.loss.pa[,-y]), method='spearman'))
+}
+
+drop.synch.TBIbc$time.delta=time.delta
+
+```
+
+# the years contributing the most to TBI synchrony.
+*the drop in synchrony observed after removing a given year indicates its contribution to synchrony*
+```{r fig.width=9, fig.height=3}
+drop.synch.TBIbc %>% 
+  pivot_longer(cols=c(1:3)) %>% 
+  ggplot()+aes(time.delta, value)+geom_path()+facet_wrap(~name, scale='free')+xlab(NULL)+ylab('Synch after removing given year')+
+  scale_x_continuous(breaks=seq(1986,2018, by=2))+theme(axis.text.x = element_text(angle=90))
+```
+
+
+
+####### *RANK SHIFT* ##########
+# some tests with rank shift
+```{r}
+
+LB10.imp %>% 
+  filter(Code=='CI1') %>% 
+  pivot_longer(col=c(3:67)) %>% 
+  select(-Code) %>% 
+  mutate(name=as.factor(name), year=as.integer(year)) %>% 
+  rank_shift(time.var = 'year', species.var = 'name', abundance.var = 'value') %>% pull(MRS)
+```
+
+# extract rankshift for each stream-year
+```{r}
+LB10rankshift=as.data.frame(matrix(ncol=10, nrow=length(time.delta)))
+rownames(LB10rankshift)=time.delta
+colnames(LB10rankshift)=lb10.siteID
+
+
+for (s in 1:length(lb10.siteID)){
+  LB10rankshift[,s]=
+    LB10.imp %>% 
+  filter(Code==lb10.siteID[s]) %>% 
+  pivot_longer(col=c(3:67)) %>% 
+  select(-Code) %>% 
+  mutate(name=as.factor(name), year=as.integer(year)) %>% 
+  rank_shift(time.var = 'year', species.var = 'name', abundance.var = 'value') %>% pull(MRS)
+}
+```
+# Plot the mean rank shift fr each site
+```{r fig.height=6}
+
+LB10rankshift %>% 
+  mutate(time.delta=time.delta) %>% 
+  mutate(deltamat=deltamat) %>% 
+  pivot_longer(cols=c(1:10)) %>% 
+  ggplot()+aes(deltamat, value, group=1)+geom_path()+facet_wrap(~name)+theme(axis.text.x = element_text(angle = 90, size=6))
+```
+
+# plot the rank shift vs winter nao for each year delta
+```{r}
+cbind(LB10rankshift, time.delta,  wNAO=NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1986:2018)) %>% pull(mean.nao)) %>% 
+  as.data.frame() %>% 
+  pivot_longer(cols=c(1:10)) %>% 
+  ggplot()+aes(wNAO, value)+geom_point(aes(col=time.delta))+scale_color_gradient(high='darkblue', low='gold3')+
+  geom_smooth(method='lm')+facet_wrap(~name)
+```
+
+```{r}
+cbind.data.frame(mean.rank.shift=rowMeans(LB10rankshift), time.delta, deltamat=deltamat,  wNAO=NAOseason %>% filter(Season=='Winter') %>% filter(winter.year %in% c(1986:2018)) %>% pull(mean.nao)) %>% 
+  ggplot()+aes(wNAO, mean.rank.shift, label=deltamat)+geom_point()+geom_text_repel()+geom_smooth(method='lm')
+```
+
+
+
+
+# *plot phasor mean field for rankshift*
+*some synchrony as in other TBI metric for example for the 4-6 timescale*
+```{r}
+plotmag(
+  wpmf(
+    cleandat(t(LB10rankshift), times=time.delta, clev=4)$cdat, times=time.delta, sigmethod = 'quick')
+)
+
+
+t_lb10rankshift=cleandat(t(LB10rankshift), times=time.delta, clev=4)$cdat
+```
+
+```{r}
+
+```
+
+
+
+
+
+
+#Plot the simple corr for Rank shift
+```{r}
+corrplot(  
+  synmat(
+    cleandat(t(LB10rankshift), times=time.delta, clev=4)$cdat, time.delta, method='spearman' ),
+         method='color', type='lower', addCoef.col = "black", title = 'Rank shift cor', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+```
+
+# *no apparent coherence between NAOw and rank shift*
+```{r}
+coh_wNAO_rankshift=
+coh(
+  as.matrix(t_NAOw_86.18.exp),  cleandat(t(LB10rankshift), times=time.delta, clev=4)$cdat, 
+                     timesNAOw[6:38],  norm='powall', sigmethod = 'fast', nrand = 10000)
+
+plotmag(coh_wNAO_rankshift)
+
+coh_wNAO_rankshift= bandtest(coh_wNAO_rankshift, c(7,8))
+coh_wNAO_rankshift= bandtest(coh_wNAO_rankshift, c(6,7))
+```
+
+# some evidence that rank shift is associated with PC1 chem scores.
+```{r}
+coh_PC1_NAOw=
+coh(as.matrix(t_compl.comm.PC1.w_85_17[-3,]), as.matrix(t_lb10rankshift[match(chem.sitesID.bio,rownames(t_lb10rankshift)) ,]), 
+                     time2[c(6:38)],  norm='powall', sigmethod = 'fast', nrand = 10000)
+
+coh_PC1_NAOw=bandtest(coh_PC1_NAOw, c(5,7))
+coh_PC1_NAOw=bandtest(coh_PC1_NAOw, c(6,7))
+plotmag(coh_PC1_NAOw)
+
+```
+# Plot of coherence btw wNAO and chemistry PC1
+```{r}
+plotmag(
+coh(as.matrix(t_compl.comm.PC1.w_85_17[-3,]), as.matrix(t_NAOw_86.18.exp[match(chem.sitesID.bio,rownames(t_NAOw_86.18.exp)) ,]), 
+                     time2[c(6:38)],  norm='powall', sigmethod = 'fast', nrand = 10000)
+)
+
+
+```
+
+
+
+
+#################################
+#####  *Simple diversity metrics* ######
+
+*not yet updated to new species selection as of 20 Dec 2021*
+
+
+# derive rich, shan and simp for each stream year
+```{r}
+LB10.imp 
+
+lb10.div=LB10.imp[,c(1,2)]
+lb10.div$richness= apply(LB10.imp[,-c(1,2)], 1, renyi, scale=0, hill=T)
+lb10.div$shannon= apply(LB10.imp[,-c(1,2)], 1, renyi, scale=1, hill=T)
+lb10.div$simpson= apply(LB10.imp[,-c(1,2)], 1, renyi, scale=3, hill=T)
+
+lb10.div$abund=apply(LB10.imp[,-c(1,2)], 1, sum )
+
+```
+
+# Plot relation betwen abund and richness for each stream
+```{r}
+lb10.div %>% 
+  ggplot()+aes(abund, richness)+geom_point()+facet_wrap(~Code)+geom_smooth()
+
+lb10.div %>% 
+  ggplot()+aes(abund, simpson)+geom_point()+facet_wrap(~Code)+geom_smooth()
+
+
+```
+# Add wNAO to diversity measures
+```{r}
+
+lb10.div$NAOw=NAOseason[NAOseason$Season=='Winter',]$mean.nao[match(lb10.div$year,  NAOseason[NAOseason$Season=='Winter',]$winter.year)]
+
+```
+
+# wNAO not really related to abundances per se
+```{r}
+lb10.div %>% 
+  ggplot()+aes(NAOw, log(abund))+geom_smooth()+facet_wrap(~Code)+geom_point()
+```
+
+
+
+# simple plots of diversity timeseries
+```{r}
+lb10.div %>% 
+  pivot_longer(cols=c(3,4,5)) %>% 
+  filter(name=='richness') %>% 
+  ggplot()+aes(year, value)+ geom_path()+facet_wrap(~Code)
+
+lb10.div %>% 
+  pivot_longer(cols=c(3,4,5)) %>% 
+  filter(name=='simpson') %>% 
+  ggplot()+aes(year, value)+ geom_path()+facet_wrap(~Code)
+```
+# get simple means for div metrics for each stream
+```{r}
+lb10.div.means=
+  lb10.div %>% 
+  group_by(Code) %>% 
+  summarise(mrich=mean(richness), mshan=mean(shannon), msimps=mean(simpson))
+```
+
+
+
+```{r}
+time.lb10=c(1985:2018)
+```
+
+# Plotting mean phasor of richness
+*showing synch for the 7-8 timescale and at shorter timescale around 2000*
+```{r}
+
+plotmag(
+    wpmf(
+cleandat(
+lb10.div %>% 
+  select(c(Code,year,richness)) %>%
+  pivot_wider(names_from = year, values_from = richness) %>% select(-Code) %>% as.matrix(),
+   times=time.lb10, clev=4)$cdat, times=time.lb10, sigmethod = 'quick'), title='Wpmf Richness')
+```
+
+
+# Far different and less synchrony for the Shannon diversity timeseries
+*sshannon and simpson show synchrony around 1990-1995 at short timescales, perhaps dominant and rare spp have diff synch*
+```{r}
+plotmag(
+    wpmf(
+cleandat(
+lb10.div %>% 
+  select(c(Code,year,shannon)) %>%
+  pivot_wider(names_from = year, values_from = shannon) %>% select(-Code) %>% as.matrix(),
+   times=time.lb10, clev=4)$cdat, times=time.lb10, sigmethod = 'quick'), title='Wpmf Shannon')
+```
+
+# Plot mean phasor for simpson
+```{r}
+plotmag(
+    wpmf(
+cleandat(
+lb10.div %>% 
+  select(c(Code,year,simpson)) %>%
+  pivot_wider(names_from = year, values_from = simpson) %>% select(-Code) %>% as.matrix(),
+   times=time.lb10, clev=4)$cdat, times=time.lb10, sigmethod = 'quick'), title='Wpmf Simpson')
+```
+
+```{r}
+plotmag(
+    wpmf(
+cleandat(
+lb10.div %>% 
+  select(c(Code,year,abund)) %>%
+  pivot_wider(names_from = year, values_from = abund) %>% select(-Code) %>% as.matrix(),
+   times=time.lb10, clev=4)$cdat, times=time.lb10, sigmethod = 'quick'), title='Wpmf Abundance')
+```
+
+
+
+
+
+
+
+
+# extract diversity specific timeseries *needed to claculate on loops etc*
+```{r}
+richness.ts=
+lb10.div %>% 
+  select(c(Code,year,richness)) %>%
+  pivot_wider(names_from = year, values_from = richness) %>% as.data.frame()
+
+shannon.ts=
+lb10.div %>% 
+  select(c(Code,year,shannon)) %>%
+  pivot_wider(names_from = year, values_from = shannon) %>% as.data.frame()
+
+
+simpson.ts=
+lb10.div %>% 
+  select(c(Code,year,simpson)) %>%
+  pivot_wider(names_from = year, values_from = simpson) %>% as.data.frame()
+
+rownames(richness.ts)=richness.ts$Code
+rownames(shannon.ts)=shannon.ts$Code
+rownames(simpson.ts)=simpson.ts$Code
+
+richness.ts$Code=NULL
+shannon.ts$Code=NULL
+simpson.ts$Code=NULL
+
+
+abund.ts=
+  lb10.div %>% 
+  select(c(Code, year, abund)) %>% 
+  pivot_wider(names_from = year, values_from = abund) %>% as.data.frame()
+
+abund.ts$Code=NULL
+
+```
+
+
+
+# Plot simple correlation between streams richness
+```{r}
+corrplot(  
+  synmat(
+    cleandat(as.matrix(richness.ts), time.lb10, clev=4)$cdat, times=time.lb10, method='spearman' ),
+         method='color', type='lower', addCoef.col = "black", title = 'Richness cor', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+```
+
+# *this is example of synchrony matrix using sig method based on fft (fourier surrogates) and the values in matrix are 1-p-value*
+```{r}
+richn.cor.fft=
+synmat(
+    cleandat(as.matrix(richness.ts), time.lb10, clev=4)$cdat, times=time.lb10, method='spearman.sig.fft')
+```
+
+
+
+# Synchrony square matrix for richness
+```{r}
+rich.synch.cor=
+synmat(
+    cleandat(as.matrix(richness.ts), time.lb10, clev=4)$cdat, times=time.lb10, method='spearman' )
+```
+
+# Test with *non parametric crosscor function (NCF)*
+```{r}
+fit2=Sncf(x=coordsLB10$X, y=coordsLB10$Y, z=as.matrix((richness.ts[,c(1:34)])))
+fit2$real$cbar
+fit2$real$cbar.intercept
+
+plot(fit2)
+```
+
+
+
+
+
+# Synchrony square matrix for Simpson
+
+
+```{r}
+simp.synch.cor=
+synmat(
+    cleandat(as.matrix(simpson.ts), time.lb10, clev=4)$cdat, times=time.lb10, method='spearman' )
+```
+
+
+
+# Add the richness synch to the mean betadiv pairs df
+```{r}
+synchronies.comm$richness.synch= 
+  rich.synch.cor %>% as.dist() %>% iCAMP::dist.3col() %>% mutate(site.pair=paste(name1, name2, sep="_")) %>% pull(dis)
+```
+
+# Add the Simpson synch to the mean betadiv pairs df
+```{r}
+synchronies.comm$simpson.synch= 
+  simp.synch.cor %>% as.dist() %>% iCAMP::dist.3col() %>% mutate(site.pair=paste(name1, name2, sep="_")) %>% pull(dis)
+```
+
+
+# Plot of decay of synch for richness and simpson
+```{r}
+synchronies.comm %>% 
+  ggplot()+aes(geodist, richness.synch)+geom_smooth(method='lm')+
+  geom_smooth(data= synchronies.comm, aes(geodist, simpson.synch), method='lm', col='red')
+```
+
+```{r fig.width=5, fig.height=4}
+synchronies.comm %>% 
+  select(geodist, richness.synch, simpson.synch) %>% 
+  pivot_longer(-1) %>% 
+  ggplot()+aes(geodist, value)+geom_smooth(aes(col=name), method='lm')+ylab('Synchrony')+xlab('Geog dist')+theme(legend.title = element_blank(), legend.position = 'top')+scale_color_manual(values=c('black', 'steelblue'))
+```
+
+
+
+
+# Plot of richness synchrony vs mena Betadiversity 
+```{r fig.width=5}
+synchronies.comm %>% 
+  ggplot()+aes(MeanBetadiv, richness.synch)+geom_point()+geom_smooth(method='lm')
+```
+
+```{r}
+
+```
+
+
+
+# test *for modularity in richness synch*
+
+```{r}
+cl.richness.cor=wsyn::clust(dat=cleandat(as.matrix(richness.ts), time.lb10, clev=4)$cdat, times=time.lb10, coords=coordsLB10,
+           method="pearson")
+```
+
+# add the modules ID and the weight to the clusters from richness metrics
+```{r}
+coordsLB10$mod.rich.cor=as.factor(cl.richness.cor$clusters[[2]])
+coordsLB10$w.rich.cor=cl.richness.cor$modres[[2]]$nodeQ
+
+
+```
+
+# Plot clusters for richness
+```{r}
+coordsLB10 %>% 
+     ggplot()+aes(X, Y)+geom_point(aes(size=w.rich.cor, col=mod.rich.cor))+theme_bw()+coord_fixed()+
+   ggtitle('Modules richness synchrony')+theme(title=element_text(size=8), legend.position = 'none')+
+   geom_text_repel(data=LB.coords, aes(x=X, y=Y, label=Site), size=2.7)+geom_point(data=LB.coords, aes(x=X, y=Y), col='grey50', size=0.7, shape=3)
+```
+
+
+
+
+# calculate drop in synchrony after removing a given year
+```{r}
+drop.synch.div=as.data.frame(matrix(ncol=3, nrow=34))
+names(drop.synch.div)=c('Richness', 'Shannon', 'Simpson')
+rownames(drop.synch.div)=time.lb10
+
+
+
+
+for(y in 1:length(time.lb10)){
+  drop.synch.div[y,1]=mean(cor(t(richness.ts[,-y]), method='spearman'))
+}
+
+for(y in 1:length(time.lb10)){
+  drop.synch.div[y,2]=mean(cor(t(shannon.ts[,-y]), method='spearman'))
+}
+
+for(y in 1:length(time.lb10)){
+  drop.synch.div[y,3]=mean(cor(t(simpson.ts[,-y]), method='spearman'))
+}
+
+drop.synch.div$year=time.lb10
+
+```
+
+# plot of drop in synchrony after removing a given year -diversity metrics
+```{r }
+drop.synch.div %>% 
+  pivot_longer(cols=c(1,3)) %>% 
+  ggplot()+aes(year, value)+geom_path()+facet_wrap(~name, scale='free_y', nrow=3)+xlab(NULL)+ylab('Synch after removing given year')+
+  scale_x_continuous(breaks=seq(1985,2018, by=2))+theme(axis.text.x = element_text(angle=90, vjust = 1))
+```
+
+
+### Coherence of diversity metrics with wNAO##
+
+
+# expand the winter NAO to all sites (for coherence test with diversity
+```{r}
+NAOw_85.18.exp=as.data.frame(matrix(nrow = 10, ncol=34))
+rownames(NAOw_85.18.exp)=unique(LB10.imp$Code)
+names(NAOw_85.18.exp)=timesNAOw[5:38]
+NAOw_85.18.exp
+
+
+for(s in 1:length(lb10.siteID)){
+NAOw_85.18.exp[s,]=ts.NAOw$cdat[5:38]
+}
+```
+
+
+# Clean winter NAO ts for coherence with richness, so 1985-2018 time
+```{r}
+ t_NAOw_85.18.exp= wsyn::cleandat(as.matrix(NAOw_85.18.exp), (timesNAOw[5:38]), clev=4)$cdat
+```
+
+# *some evidence of coherence simpson wNAO at longer timescales, but not strong*
+
+```{r}
+
+coh_wNAO_Simpson=
+coh(
+  as.matrix(t_NAOw_85.18.exp),  
+  cleandat(
+  lb10.div %>% 
+  select(c(Code,year,simpson)) %>%
+  pivot_wider(names_from = year, values_from = simpson) %>% select(-Code) %>% as.matrix(),
+   times=time.lb10, clev=4)$cdat ,
+  
+                     timesNAOw[5:38],  norm='powall', sigmethod = 'fast', nrand = 10000)
+
+coh_wNAO_Simpson=bandtest(coh_wNAO_Simpson, c(5,6))
+coh_wNAO_Simpson=bandtest(coh_wNAO_Simpson, c(6,7))
+
+plotmag(coh_wNAO_Simpson)
+
+```
+
+# *Some stronger coherence between richness and wNAO, than with simpson*
+```{r}
+coh_wNAO_Richness=
+coh(
+  as.matrix(t_NAOw_85.18.exp),  
+  cleandat(
+  lb10.div %>% 
+  select(c(Code,year,richness)) %>%
+  pivot_wider(names_from = year, values_from = richness) %>% select(-Code) %>% as.matrix(),
+   times=time.lb10, clev=4)$cdat ,
+  
+                     timesNAOw[5:38],  norm='powall', sigmethod = 'fast', nrand = 10000)
+
+coh_wNAO_Richness=bandtest(coh_wNAO_Richness, c(5,6))
+coh_wNAO_Richness=bandtest(coh_wNAO_Richness, c(6,7))
+
+plotmag(coh_wNAO_Richness)
+```
+
+###################################
+### *Test eventual coherence between richness and PC1 chemistry winter*
+
+#clean again the *PC1 winter* data for subset of years matchin LB10
+
+```{r}
+t_compl.comm.PC1.w_85_18=cleandat(as.matrix(t_compl.comm.PC1.w[,c(5:38)]),time2[c(5:38)] , clev=4)$cdat
+
+time2[c(5:38)]
+```
+
+
+
+# *Rather weak coherence between richness and PC1 winter*
+```{r}
+coh_richness_PC1=
+coh(as.matrix(t_compl.comm.PC1.w_85_18[-3,]), 
+    cleandat(as.matrix(richness.ts[match(chem.sitesID.bio,rownames(richness.ts)) ,]), times=time.lb10, clev=4)$cdat  , 
+                     time.lb10,  norm='powall', sigmethod = 'fast', nrand = 10000)
+
+coh_richness_PC1=bandtest(coh_richness_PC1, c(5,6))
+
+plotmag(coh_richness_PC1)
+```
+
+
+# ########################
+# *Must add the data on T and Rain by Fiona in the shared folder!*
+##########################
 
