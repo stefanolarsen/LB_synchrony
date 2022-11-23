@@ -1,0 +1,3957 @@
+---
+title: "LBsynch_ms"
+author: "Stefano Larsen"
+date: "2022-11-10"
+output: html_document
+---
+
+
+```{r}
+
+install.packages('ggrepel')
+library(readxl)
+library(tidyverse)
+library(reshape2)
+library(ggrepel)
+library(zoo)
+library(vegan)
+library(codyn)
+library(iCAMP)
+library(data.table)
+install.packages('gdata')
+library(gdata)
+```
+
+
+
+```{r}
+theme_set(theme_bw())
+```
+
+
+
+# Import the chemistry data for each stream
+##LI.chem
+```{r}
+LI1.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "LI1")
+
+LI1.chem$Date=as.Date(LI1.chem$Date, format="%Y-%m-%d")
+
+LI1.chem$month=months(LI1.chem$Date)
+LI1.chem$year=format(LI1.chem$Date, '%Y')
+#add season
+LI1.chem$Season=NA
+LI1.chem$Season[which(LI1.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+LI1.chem$Season[which(LI1.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+
+```
+
+##LI2
+```{r}
+LI2.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "LI2", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+LI2.chem$month=months(LI2.chem$Date)
+LI2.chem$year=format(LI2.chem$Date, '%Y')
+#add season
+LI2.chem$Season=NA
+LI2.chem$Season[which(LI2.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+LI2.chem$Season[which(LI2.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+##LI3
+```{r}
+LI3.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "LI3", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+LI3.chem$month=months(LI3.chem$Date)
+LI3.chem$year=format(LI3.chem$Date, '%Y')
+
+#add season
+LI3.chem$Season=NA
+LI3.chem$Season[which(LI3.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+LI3.chem$Season[which(LI3.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+
+```
+
+##LI4
+```{r}
+LI4.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "LI4", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+LI4.chem$month=months(LI4.chem$Date)
+LI4.chem$year=format(LI4.chem$Date, '%Y')
+
+#add season
+LI4.chem$Season=NA
+LI4.chem$Season[which(LI4.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+LI4.chem$Season[which(LI4.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+
+```
+
+##LI5
+```{r}
+LI5.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "LI5", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+LI5.chem$month=months(LI5.chem$Date)
+LI5.chem$year=format(LI5.chem$Date, '%Y')
+
+#add season
+LI5.chem$Season=NA
+LI5.chem$Season[which(LI5.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+LI5.chem$Season[which(LI5.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+
+##LI6
+```{r}
+LI6.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "LI6", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+LI6.chem$month=months(LI6.chem$Date)
+LI6.chem$year=format(LI6.chem$Date, '%Y')
+
+#add season
+LI6.chem$Season=NA
+LI6.chem$Season[which(LI6.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+LI6.chem$Season[which(LI6.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+
+##LI7
+```{r}
+LI7.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "LI7", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+LI7.chem$month=months(LI7.chem$Date)
+LI7.chem$year=format(LI7.chem$Date, '%Y')
+
+#add season
+LI7.chem$Season=NA
+LI7.chem$Season[which(LI7.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+LI7.chem$Season[which(LI7.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+
+##LI8
+```{r}
+LI8.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "LI8", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+LI8.chem$month=months(LI8.chem$Date)
+LI8.chem$year=format(LI8.chem$Date, '%Y')
+
+#add season
+LI8.chem$Season=NA
+LI8.chem$Season[which(LI8.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+LI8.chem$Season[which(LI8.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+##CI1
+```{r}
+CI1.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "CI1", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+CI1.chem$month=months(CI1.chem$Date)
+CI1.chem$year=format(CI1.chem$Date, '%Y')
+
+#add season
+CI1.chem$Season=NA
+CI1.chem$Season[which(CI1.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+CI1.chem$Season[which(CI1.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+##CI2
+```{r}
+CI2.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "CI2", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+CI2.chem$month=months(CI2.chem$Date)
+CI2.chem$year=format(CI2.chem$Date, '%Y')
+
+#add season
+CI2.chem$Season=NA
+CI2.chem$Season[which(CI2.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+CI2.chem$Season[which(CI2.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+
+##CI3
+```{r}
+CI3.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "CI3", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+CI3.chem$month=months(CI3.chem$Date)
+CI3.chem$year=format(CI3.chem$Date, '%Y')
+
+#add season
+CI3.chem$Season=NA
+CI3.chem$Season[which(CI3.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+CI3.chem$Season[which(CI3.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+##CI4
+```{r}
+CI4.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "CI4", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+CI4.chem$month=months(CI4.chem$Date)
+CI4.chem$year=format(CI4.chem$Date, '%Y')
+
+#add season
+CI4.chem$Season=NA
+CI4.chem$Season[which(CI4.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+CI4.chem$Season[which(CI4.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+##CI5
+```{r}
+CI5.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "CI5X", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+CI5.chem$month=months(CI5.chem$Date)
+CI5.chem$year=format(CI5.chem$Date, '%Y')
+
+#add season
+CI5.chem$Season=NA
+CI5.chem$Season[which(CI5.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+CI5.chem$Season[which(CI5.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+##CI6
+```{r}
+CI6.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "CI6", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+CI6.chem$month=months(CI6.chem$Date)
+CI6.chem$year=format(CI6.chem$Date, '%Y')
+
+#add season
+CI6.chem$Season=NA
+CI6.chem$Season[which(CI6.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+CI6.chem$Season[which(CI6.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+
+
+# Now check outlier
+
+## crazy outliers in some parameters
+
+```{r}
+summary(LI1.chem)
+```
+
+# Function to covert max values into NA (remove max values from a vector)
+```{r}
+max2na=function(x){
+  x[which.max(x)]=NA
+  return(x)
+}
+
+#tests
+test=c(1,2,3,4,5,10)
+which.max(test)
+test[which.max(test)]=NA
+test=max2na(test)
+
+
+which.max(LI1.chem$Mn_Filtered)
+```
+
+# transform chemistry dfs for each site, removing the max values for each variable.
+```{r}
+LI1.chem=cbind(
+  LI1.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(LI1.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+
+```{r}
+LI2.chem=cbind(
+  LI2.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(LI2.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+```{r}
+LI3.chem=cbind(
+  LI3.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(LI3.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+```{r}
+LI4.chem=cbind(
+  LI4.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(LI4.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+
+```{r}
+LI5.chem=cbind(
+  LI5.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(LI5.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+
+```{r}
+LI6.chem=cbind(
+  LI6.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(LI6.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+
+```{r}
+LI7.chem=cbind(
+  LI7.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(LI7.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+```{r}
+LI8.chem=cbind(
+  LI8.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(LI8.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+```{r}
+CI1.chem=cbind(
+  CI1.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(CI1.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+```{r}
+CI2.chem=cbind(
+  CI2.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(CI2.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+```{r}
+CI3.chem=cbind(
+  CI3.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(CI3.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+```{r}
+CI4.chem=cbind(
+  CI4.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(CI4.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+```{r}
+CI5.chem=cbind(
+  CI5.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(CI5.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+```{r}
+CI6.chem=cbind(
+  CI6.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(CI6.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+
+```{r}
+summary(LI4.chem)
+```
+
+
+# Visualize some boxplot for examination
+```{r}
+LI1.chem %>%
+  select(-c(Site, Date, year, Season, month)) %>% 
+  gather() %>% 
+  ggplot()+aes(x=key, y=value)+geom_boxplot()+facet_wrap(~key, scale='free')
+```
+
+
+
+
+
+
+
+######################################
+# tests to *assign winter year label* to months from following year of sampling
+```{r}
+LI1.chem$year=as.numeric(LI1.chem$year)
+```
+
+## *winter year* : months of oct, nov, dec are considered winter from the sampling occurring the following year (April).
+Will use this winter year label to aggregate by year and season. 
+
+```{r}
+LI1.chem$winter.year <- ifelse(LI1.chem$month %in% c('January','February','March'), LI1.chem$year, ifelse(LI1.chem$month %in% c('October', 'November','December'), LI1.chem$year+1, LI1.chem$year))
+```
+
+```{r}
+LI2.chem$year=as.numeric(LI2.chem$year)
+LI2.chem$winter.year <- ifelse(LI2.chem$month %in% c('January','February','March'), LI2.chem$year, ifelse(LI2.chem$month %in% c('October', 'November','December'), LI2.chem$year+1, LI2.chem$year))
+```
+
+```{r}
+LI3.chem$year=as.numeric(LI3.chem$year)
+LI3.chem$winter.year <- ifelse(LI3.chem$month %in% c('January','February','March'), LI3.chem$year, ifelse(LI3.chem$month %in% c('October', 'November','December'), LI3.chem$year+1, LI3.chem$year))
+```
+
+```{r}
+LI4.chem$year=as.numeric(LI4.chem$year)
+LI4.chem$winter.year <- ifelse(LI4.chem$month %in% c('January','February','March'), LI4.chem$year, ifelse(LI4.chem$month %in% c('October', 'November','December'), LI4.chem$year+1, LI4.chem$year))
+```
+
+```{r}
+LI5.chem$year=as.numeric(LI5.chem$year)
+LI5.chem$winter.year <- ifelse(LI5.chem$month %in% c('January','February','March'), LI5.chem$year, ifelse(LI5.chem$month %in% c('October', 'November','December'), LI5.chem$year+1, LI5.chem$year))
+```
+
+```{r}
+LI6.chem$year=as.numeric(LI6.chem$year)
+LI6.chem$winter.year <- ifelse(LI6.chem$month %in% c('January','February','March'), LI6.chem$year, ifelse(LI6.chem$month %in% c('October', 'November','December'), LI6.chem$year+1, LI6.chem$year))
+```
+
+```{r}
+LI7.chem$year=as.numeric(LI7.chem$year)
+LI7.chem$winter.year <- ifelse(LI7.chem$month %in% c('January','February','March'), LI7.chem$year, ifelse(LI7.chem$month %in% c('October', 'November','December'), LI7.chem$year+1, LI7.chem$year))
+```
+
+```{r}
+LI8.chem$year=as.numeric(LI8.chem$year)
+LI8.chem$winter.year <- ifelse(LI8.chem$month %in% c('January','February','March'), LI8.chem$year, ifelse(LI8.chem$month %in% c('October', 'November','December'), LI8.chem$year+1, LI8.chem$year))
+```
+
+```{r}
+CI1.chem$year=as.numeric(CI1.chem$year)
+CI1.chem$winter.year <- ifelse(CI1.chem$month %in% c('January','February','March'), CI1.chem$year, ifelse(CI1.chem$month %in% c('October', 'November','December'), CI1.chem$year+1, CI1.chem$year))
+```
+
+```{r}
+CI2.chem$year=as.numeric(CI2.chem$year)
+CI2.chem$winter.year <- ifelse(CI2.chem$month %in% c('January','February','March'), CI2.chem$year, ifelse(CI2.chem$month %in% c('October', 'November','December'), CI2.chem$year+1, CI2.chem$year))
+```
+
+```{r}
+CI3.chem$year=as.numeric(CI3.chem$year)
+CI3.chem$winter.year <- ifelse(CI3.chem$month %in% c('January','February','March'), CI3.chem$year, ifelse(CI3.chem$month %in% c('October', 'November','December'), CI3.chem$year+1, CI3.chem$year))
+```
+
+```{r}
+CI4.chem$year=as.numeric(CI4.chem$year)
+CI4.chem$winter.year <- ifelse(CI4.chem$month %in% c('January','February','March'), CI4.chem$year, ifelse(CI4.chem$month %in% c('October', 'November','December'), CI4.chem$year+1, CI4.chem$year))
+```
+
+```{r}
+CI5.chem$year=as.numeric(CI5.chem$year)
+CI5.chem$winter.year <- ifelse(CI5.chem$month %in% c('January','February','March'), CI5.chem$year, ifelse(CI5.chem$month %in% c('October', 'November','December'), CI5.chem$year+1, CI5.chem$year))
+```
+
+```{r}
+CI6.chem$year=as.numeric(CI6.chem$year)
+CI6.chem$winter.year <- ifelse(CI6.chem$month %in% c('January','February','March'), CI6.chem$year, ifelse(CI6.chem$month %in% c('October', 'November','December'), CI6.chem$year+1, CI6.chem$year))
+```
+
+
+
+###############################################
+# Now *aggregate data for year and season*,* using the year winter label
+###############
+
+
+
+# Aggregate (mean) data to season and years
+```{r}
+LI1.chem.seas=
+LI1.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site=rep('LI1', nrow=LI1.chem.seas), .before="year")
+
+```
+
+```{r}
+LI2.chem.seas=
+LI2.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='LI2', .before="year")
+```
+
+```{r}
+LI3.chem.seas=
+LI3.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='LI3', .before="year")
+```
+
+```{r}
+LI4.chem.seas=
+LI4.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='LI4', .before="year")
+```
+
+```{r}
+LI5.chem.seas=
+LI5.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='LI5', .before="year")
+```
+
+```{r}
+LI6.chem.seas=
+LI6.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='LI6', .before="year")
+```
+
+```{r}
+LI7.chem.seas=
+LI7.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='LI7', .before="year")
+```
+
+```{r}
+LI8.chem.seas=
+LI8.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='LI8', .before="year")
+```
+
+```{r}
+CI1.chem.seas=
+CI1.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='CI1', .before="year")
+```
+
+```{r}
+CI2.chem.seas=
+CI2.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='CI2', .before="year")
+```
+
+```{r}
+CI3.chem.seas=
+CI3.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='CI3', .before="year")
+```
+
+```{r}
+CI4.chem.seas=
+CI4.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='CI4', .before="year")
+```
+
+```{r}
+CI5.chem.seas=
+CI5.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='CI5', .before="year")
+```
+
+```{r}
+CI6.chem.seas=
+CI6.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='CI6', .before="year")
+```
+
+# Exploring some trends in pH
+```{r}
+CI1.chem.seas %>% 
+  ggplot()+aes(as.numeric(year), pH)+geom_smooth(aes(col=Season))
+
+CI2.chem.seas %>% 
+  ggplot()+aes(as.numeric(year), pH)+geom_smooth(aes(col=Season))
+
+LI1.chem.seas %>% 
+  ggplot()+aes(as.numeric(year), pH)+geom_smooth(aes(col=Season))
+
+```
+
+# Combining *rbind* all seasonal means for chemistry across sites
+```{r}
+LB_chem.seas=
+  rbind(LI1.chem.seas, LI2.chem.seas, LI3.chem.seas, LI4.chem.seas,LI5.chem.seas,
+        LI6.chem.seas, LI7.chem.seas, LI8.chem.seas,
+        CI1.chem.seas, CI2.chem.seas,CI3.chem.seas, CI4.chem.seas,CI5.chem.seas,CI6.chem.seas)
+```
+
+# LB combined sites explore pH trends
+```{r warning=F}
+LB_chem.seas %>% 
+  ggplot()+aes(as.numeric(year), pH)+geom_smooth(aes(col=Season))+theme_bw()+
+  facet_wrap(~Site)
+```
+# LB trends in Alakalinity *scale.free*
+```{r, warning=F}
+LB_chem.seas %>% 
+  ggplot()+aes(as.numeric(year), Alky_pH_4.5)+geom_smooth(aes(col=Season))+theme_bw()+
+  facet_wrap(~Site, scale ='free_y')
+```
+# LB trends in NOx
+```{r, warning=F}
+LB_chem.seas %>% 
+  ggplot()+aes(as.numeric(year), N_Oxidised)+geom_smooth(aes(col=Season))+theme_bw()+
+  facet_wrap(~Site)
+```
+
+# LB trends in Al_filtered *scale.free!*
+```{r, warning=F}
+LB_chem.seas %>% 
+  ggplot()+aes(as.numeric(year), Al_Filtered)+geom_smooth(aes(col=Season))+theme_bw()+
+  facet_wrap(~Site, scale='free_y')
+```
+
+# LB trends in Cond20C
+*this variable could be omitted from PCA eventually*
+```{r, warning=F}
+LB_chem.seas %>% 
+  ggplot()+aes(as.numeric(year), Cond20C)+geom_smooth(aes(col=Season))+
+  facet_wrap(~Site)
+```
+
+# Can fill the NAs in the seasonal data with mean within each stream
+
+## Function to *fill the NAn in df with mean of respective column*  
+```{r}
+NAN2mean=function(x){
+  x[which(is.nan(x)==T)]=mean(x, na.rm=T)
+  return(x)
+}
+
+#test
+test=c(1,4,5,7,NaN,2)
+NAN2mean(test)
+
+```
+
+# Function that uses the NAN2mean function, but first splits the df into summer and winter, then fill the NAs separately, then joins the season in a single df
+
+```{r}
+NAN2mean.seas=function(df){
+  s= df %>% filter(Season=='Summer') # extract summer
+  w= df %>% filter(Season=='Winter') # extract winter
+  w.fill=cbind(w[,c(1,2,3,4)],as.data.frame(apply(w[,c(5:17)], 2, NAN2mean))) # use the NAN2mean function to fill the NAs with column mean (within season)
+  s.fill=cbind(s[,c(1,2,3,4)],as.data.frame(apply(s[,c(5:17)], 2, NAN2mean))) # the same but for summer
+  df.fill=rbind(w.fill, s.fill) # cbind the seasons
+  df.fill=df.fill[order(df.fill$winter.year),] # sort them as the original df
+  return(df.fill)
+}
+```
+
+
+######## *FILLING some NAs in seasonal data with respective column and season mean* ####
+# fill the seasonal chem data using the NAN2mean.seas function
+```{r}
+LI1.chem.seas.fill=NAN2mean.seas(LI1.chem.seas)
+  
+```
+
+```{r}
+LI2.chem.seas.fill=NAN2mean.seas(LI2.chem.seas)
+```
+
+```{r}
+LI3.chem.seas.fill=NAN2mean.seas(LI3.chem.seas)
+```
+
+```{r}
+LI4.chem.seas.fill=NAN2mean.seas(LI4.chem.seas)
+```
+
+
+```{r}
+LI5.chem.seas.fill=NAN2mean.seas(LI5.chem.seas)
+```  
+
+```{r}
+LI6.chem.seas.fill=NAN2mean.seas(LI6.chem.seas)
+```
+
+```{r}
+LI7.chem.seas.fill=NAN2mean.seas(LI7.chem.seas)
+```
+
+```{r}
+LI8.chem.seas.fill=NAN2mean.seas(LI8.chem.seas)
+```
+
+```{r}
+CI1.chem.seas.fill=NAN2mean.seas(CI1.chem.seas)
+```
+
+```{r}
+CI2.chem.seas.fill=NAN2mean.seas(CI2.chem.seas)
+```
+
+```{r}
+CI3.chem.seas.fill=NAN2mean.seas(CI3.chem.seas)
+```
+
+```{r}
+CI4.chem.seas.fill=NAN2mean.seas(CI4.chem.seas)
+```
+
+```{r}
+CI5.chem.seas.fill=NAN2mean.seas(CI5.chem.seas)
+```
+
+```{r}
+CI6.chem.seas.fill=NAN2mean.seas(CI6.chem.seas)
+```
+
+# There is still outlier in Hardness in LI1
+```{r}
+summary(LI1.chem.seas.fill$Hardness)
+which.max(LI1.chem.seas.fill$Hardness)
+
+LI1.chem.seas.fill[50,8] # 70 is way too much I thnk
+
+```
+# Convert this high hardness into the mean of column
+```{r}
+LI1.chem.seas.fill[50,8] = mean(LI1.chem.seas.fill$Hardness)
+```
+
+
+
+# Comnine all the sites using the filled df, towards the first PCA on chem data
+```{r}
+LB_chem.seas.fill=rbind(LI1.chem.seas.fill, LI2.chem.seas.fill, LI3.chem.seas.fill, LI4.chem.seas.fill, 
+                        LI5.chem.seas.fill, LI6.chem.seas.fill, LI7.chem.seas.fill, LI8.chem.seas.fill,
+                        CI1.chem.seas.fill, CI2.chem.seas.fill, CI3.chem.seas.fill, CI4.chem.seas.fill, CI5.chem.seas.fill, CI6.chem.seas.fill)
+```
+# Exploring again outliers in the LB total chemistry
+```{r}
+summary(LB_chem.seas.fill)
+```
+
+# Just get the mean for each site and season
+```{r}
+LB_overall.mean=
+LB_chem.seas.fill %>% 
+  group_by(Site, Season) %>% 
+  summarise_all(mean)
+```
+
+
+
+####################################
+# Carry on the *PCA on chemistry*.
+###################################
+# *PCA with all available streams and data, many holes*
+
+```{r}
+PCA.chem=princomp(LB_chem.seas.fill[,c(5:17)], cor=T, scores=T)
+```
+
+```{r}
+PCA.chem$loadings
+PCA.chem$scores
+```
+
+```{r}
+install.packages('factoextra')
+library(factoextra)
+```
+
+```{r}
+fviz_pca_var(PCA.chem, repel = T, col.var="contrib",  gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+
+```{r}
+fviz_pca_ind(PCA.chem, habillage = LB_chem.seas.fill$Site, addEllipses = T, label='none')
+```
+
+
+
+
+# Extract the scores of PCA chemistry into a df
+```{r}
+PCA.chem.ax=
+  cbind(LB_chem.seas.fill[,c(1,2,3,4)],
+        as.data.frame(PCA.chem$scores)
+       )
+
+```
+# Derive hulls for Site and Season over the two PC axes
+```{r}
+hull_pca.chem=
+PCA.chem.ax %>% 
+  group_by(Site, Season) %>% 
+  slice(chull(Comp.1, Comp.2))
+```
+
+# Plot All sites with Hull - very confusing
+```{r}
+PCA.chem.ax %>% 
+  mutate(year=as.numeric(year)) %>% 
+  #filter(Season=='Winter') %>% 
+  ggplot()+aes(Comp.1, Comp.2, col=Site)+geom_point(alpha=.2)+geom_polygon(data=hull_pca.chem, fill=NA)
+
+
+```
+
+# Plot the Chem PCA with sites centroids only
+```{r}
+PCA.chem.ax %>% 
+  #filter(Season=='Summer') %>% 
+  filter(Season=='Winter') %>% 
+  select(c(1:6)) %>% 
+  group_by(Site) %>% 
+  mutate(centr.c1=mean(Comp.1), centr.c2=mean(Comp.2)) %>% 
+  ggplot()+aes(Comp.1, Comp.2)+geom_text(aes(centr.c1, centr.c2, label=Site))+theme_bw()
+```
+
+
+
+# Plot PC with year trajectories for each site
+```{r}
+PCA.chem.ax %>% 
+  mutate(year=as.numeric(year)) %>% 
+  #filter(Season=='Winter') %>% 
+  filter(Season=='Summer') %>% 
+dplyr:: filter(Site %in% c('CI2', 'CI4','CI5', 'LI1', 'LI2', 'LI4', 'LI5', 'LI6', 'LI8')) %>%  
+  ggplot()+aes(Comp.1, Comp.2, col=year)+geom_point(size=0.5)+geom_path()+theme_bw()+
+  facet_wrap(~Site)+scale_color_gradient(high='darkblue', low='gold3')+ggtitle('Summer')
+```
+
+```{r}
+PCA.chem.ax %>% 
+  mutate(year=as.numeric(year)) %>% 
+  filter(Season=='Winter') %>% 
+  #filter(Season=='Summer') %>% 
+dplyr:: filter(Site %in% c('CI2', 'CI4','CI5', 'LI1', 'LI2', 'LI4', 'LI5', 'LI6', 'LI8')) %>%  
+  ggplot()+aes(Comp.1, Comp.2, col=year)+geom_point(size=0.5)+geom_path()+theme_bw()+
+  facet_wrap(~Site)+scale_color_gradient(high='darkblue', low='gold3')+ggtitle('Winter')
+```
+
+```{r}
+PCA.chem.ax %>% 
+  ggplot()+aes(winter.year, Comp.1)+geom_path()+facet_wrap(~Site)
+```
+
+
+
+
+# Explore the years in common across streams
+## derive a variable reporting the years of data available
+```{r}
+LI1.year=
+unique(LI1.chem.seas.fill$year)
+
+LI2.year=
+unique(LI2.chem.seas.fill$year)
+
+LI3.year=
+unique(LI3.chem.seas.fill$year)
+
+LI4.year=
+  unique(LI4.chem.seas.fill$year)
+
+LI5.year=
+  unique(LI5.chem.seas.fill$year)
+
+LI6.year=
+  unique(LI6.chem.seas.fill$year)
+
+LI7.year=
+  unique(LI7.chem.seas.fill$year)
+
+LI8.year=
+  unique(LI8.chem.seas.fill$year)
+
+CI1.year=
+  unique(CI1.chem.seas.fill$year)
+
+CI2.year=
+  unique(CI2.chem.seas.fill$year)
+
+CI3.year=
+  unique(CI3.chem.seas.fill$year)
+
+CI4.year=
+  unique(CI4.chem.seas.fill$year)
+
+CI5.year=
+  unique(CI5.chem.seas.fill$year)
+
+CI6.year=
+  unique(CI6.chem.seas.fill$year)
+```
+
+```{r}
+LI4.year
+
+```
+
+
+# Try to construct a dataframe to hold common PC axis scores across sites
+*PC1*
+```{r}
+Common.PC1=data.frame(
+  year=rep(c(1981:2019), each=2),
+  Season=rep(c('Summer', 'Winter'), 39)
+)
+
+Common.PC1$year_season=paste(Common.PC1$year, Common.PC1$Season, sep='_')
+```
+
+# Add a **column reporting winter.year_season for each observation in PCA axes df*
+Here I use the winter year to match the right season in the year of sampling...
+```{r}
+PCA.chem.ax$wyear_season=paste(PCA.chem.ax$winter.year, PCA.chem.ax$Season, sep="_")
+```
+
+# Now add to the common PCs the actual PC scores *PC1*  from each stream by matching site_season
+Not the most elegant way...
+## A
+```{r}
+zio=PCA.chem.ax %>% filter(Site=='LI1') # first just extract each site at a time
+
+Common.PC1$PC1.LI1= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI2')
+Common.PC1$PC1.LI2= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI3')
+Common.PC1$PC1.LI3= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI4')
+Common.PC1$PC1.LI4= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI5')
+Common.PC1$PC1.LI5= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI6')
+Common.PC1$PC1.LI6= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI7')
+Common.PC1$PC1.LI7= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI8')
+Common.PC1$PC1.LI8= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI1')
+Common.PC1$PC1.CI1= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI2')
+Common.PC1$PC1.CI2= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI3')
+Common.PC1$PC1.CI3= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI4')
+Common.PC1$PC1.CI4= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI5')
+Common.PC1$PC1.CI5= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI6')
+Common.PC1$PC1.CI6= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+
+```
+
+
+# Construct a df for *common PC2*
+```{r}
+Common.PC2=data.frame(
+  year=rep(c(1981:2019), each=2),
+  Season=rep(c('Summer', 'Winter'), 39)
+)
+
+Common.PC2$year_season=paste(Common.PC2$year, Common.PC2$Season, sep='_')
+```
+
+```{r}
+zio=PCA.chem.ax %>% filter(Site=='LI1') # first just extract each site at a time
+
+Common.PC2$PC2.LI1= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI2')
+Common.PC2$PC2.LI2= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI3')
+Common.PC2$PC2.LI3= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI4')
+Common.PC2$PC2.LI4= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI5')
+Common.PC2$PC2.LI5= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI6')
+Common.PC2$PC2.LI6= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI7')
+Common.PC2$PC2.LI7= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI8')
+Common.PC2$PC2.LI8= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI1')
+Common.PC2$PC2.CI1= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI2')
+Common.PC2$PC2.CI2= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI3')
+Common.PC2$PC2.CI3= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI4')
+Common.PC2$PC2.CI4= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI5')
+Common.PC2$PC2.CI5= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI6')
+Common.PC2$PC2.CI6= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+```
+
+
+
+```{r}
+library(corrplot)
+```
+
+
+# Test for simple synchrony (correlation) between each pairs. 
+*here using complete cases with 7 streams*
+```{r}
+Common.PC1 %>% 
+  filter(Season=='Summer') %>% 
+  select(-c(Season, year_season, PC1.LI2,PC1.LI3,PC1.LI7, PC1.LI8, PC1.CI1, PC1.CI3,PC1.CI6)) %>% 
+  na.omit %>% 
+  select(-year) %>% 
+  cor() %>% 
+  corrplot(method='color', type='lower', addCoef.col = "black", title = 'Summer PC1 synchrony', mar=c(0,0,3,0), number.cex = .8, tl.cex = 0.7)
+
+
+```
+# As above, synchrony for winter 
+```{r}
+Common.PC1 %>% 
+  filter(Season=='Winter') %>% 
+  select(-c(Season, year_season, PC1.LI2,PC1.LI3,PC1.LI7, PC1.LI8, PC1.CI1, PC1.CI3,PC1.CI6)) %>% 
+  na.omit %>% 
+  select(-year) %>% 
+  cor() %>% 
+  corrplot(method='color', type='lower', addCoef.col = "black", title = 'Winter PC1 synchrony', mar=c(0,0,3,0), number.cex = 0.8,tl.cex = 0.7)
+
+```
+
+
+
+
+# Synchrny pairwise corr
+*here using pairwise.complete.obs for 9 streams*
+```{r}
+Common.PC1 %>% 
+  filter(Season=='Summer') %>% 
+  select(-c(Season, year_season, PC1.LI3,PC1.LI7, PC1.CI1, PC1.CI3, PC1.CI6)) %>% 
+  #na.omit %>% 
+  select(-year) %>% 
+  cor(use='pairwise.complete.obs') %>% 
+  corrplot(method='color', type='lower', addCoef.col = "black", title = 'Summer synchrony', mar=c(0,0,2,0), number.cex = .8)
+```
+# Count the missing values for each stream in the common PCs
+
+```{r}
+apply( Common.PC1,2, function(x) sum(is.na(x)))
+```
+
+
+########################################################
+# Explore the combination of sites with minimum missin data
+```{r}
+Common.PC1 %>% 
+  #filter(Season=='Summer') %>% 
+  filter(Season=='Winter') %>% 
+  select(year, Season,PC1.LI1, PC1.LI4,PC1.LI5, PC1.LI6,  PC1.CI2,PC1.CI4) %>% 
+  #select(year) %>% unique()
+  na.omit 
+```
+
+# Create the first *most complete set of PC1 scores for a few streams*. Will inpute missing values where reasonable
+```{r}
+Compl.comm.PC1=
+Common.PC1 %>% 
+  #filter(Season=='Summer') %>% 
+  #filter(Season=='Winter') %>% 
+  select(year, Season,PC1.LI1, PC1.LI4,PC1.LI5, PC1.LI6,  PC1.CI2,PC1.CI4)
+```
+
+# filling some missin values with means
+*summer of 1992 for LI1 and LI4 streams* is now filled
+```{r}
+which(is.na(Compl.comm.PC1$PC1.LI1)) # these is a summer value
+
+# Fill the summer NA in LI1 with the mean of summer scores
+Compl.comm.PC1$PC1.LI1 [which(is.na(Compl.comm.PC1$PC1.LI1))] =
+Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.LI1) %>% colMeans(na.rm=T)
+
+# Fill the summer NA in LI2 with the mean of summer scores
+Compl.comm.PC1$PC1.LI4 [which(is.na(Compl.comm.PC1$PC1.LI4))] =
+Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.LI4) %>% colMeans(na.rm=T)
+
+```
+
+# *fill LI5 stream*
+```{r}
+#Summer
+Compl.comm.PC1$PC1.LI5[ c(23,25,27,31)]# these are all summer NA for LI5
+
+# fill these summer scores with the overal mean of summer for this site
+Compl.comm.PC1$PC1.LI5[ c(23,25,27,31)]=rep( Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.LI5) %>% colMeans(na.rm=T), 4)
+
+#Winter
+Compl.comm.PC1$PC1.LI5[ c(24,26,32)] # these are winter months wiht NAs
+# fill
+Compl.comm.PC1$PC1.LI5[ c(24,26,32)]=rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.LI5) %>% colMeans(na.rm=T), 3)
+
+Compl.comm.PC1$PC1.LI5[ c(28)] # another winter nA
+Compl.comm.PC1$PC1.LI5[ c(28)] = Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.LI5) %>% colMeans(na.rm=T)
+```
+
+
+# *fill LI6 stream*
+```{r}
+#summer
+Compl.comm.PC1$PC1.LI6[c(5,23,27,29)]# these are summer months with NAs
+#fill
+Compl.comm.PC1$PC1.LI6[c(5,23,27,29)]=rep( Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.LI6) %>% colMeans(na.rm=T), 4)
+
+#winter
+Compl.comm.PC1$PC1.LI6[c(6,30)]
+
+Compl.comm.PC1$PC1.LI6[c(6,30)]= rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.LI6) %>% colMeans(na.rm=T), 2)
+
+Compl.comm.PC1$PC1.LI6[c(8,32)]# other winter NAs
+
+ Compl.comm.PC1$PC1.LI6[c(8,32)]= rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.LI6) %>% colMeans(na.rm=T), 2)
+
+
+```
+
+# *fill CI2 stream*
+```{r}
+#summer
+Compl.comm.PC1$PC1.CI2[c(1,3,5,23)]#these are suymmer months with NAs- the first three years are missing entirely
+
+Compl.comm.PC1$PC1.CI2[c(1,3,5,23)]= rep( Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.CI2) %>% colMeans(na.rm=T), 4)
+
+#winter
+Compl.comm.PC1$PC1.CI2[c(2,4,6)]# these are winter months with NAs
+#fill
+Compl.comm.PC1$PC1.CI2[c(2,4,6)] =rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.CI2) %>% colMeans(na.rm=T), 3)
+
+Compl.comm.PC1$PC1.CI2[c(8)]# a winter NAs
+Compl.comm.PC1$PC1.CI2[c(8)]=Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.CI2) %>% colMeans(na.rm=T)
+
+```
+
+
+# *fill CI4 stream*
+```{r}
+#summer
+Compl.comm.PC1$PC1.CI4[c(1,3,5,23)]#these are suymmer months with NAs- the first three years are missing entirely
+
+Compl.comm.PC1$PC1.CI4[c(1,3,5,23)]= rep( Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.CI4) %>% colMeans(na.rm=T), 4)
+
+#winter
+Compl.comm.PC1$PC1.CI4[c(2,4,6)]# these are winter months with NAs
+#fill
+Compl.comm.PC1$PC1.CI4[c(2,4,6)] =rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.CI4) %>% colMeans(na.rm=T), 3)
+
+
+```
+
+
+####### Correlation synchrony across 6 streams using PC1 scores
+# The *correlation [synchrony] plot for the imputed PC1 scores* across 6 streams
+```{r}
+Compl.comm.PC1 %>% 
+  filter(Season=='Summer') %>% 
+  select(- c(year, Season)) %>% 
+  cor %>% 
+  corrplot(method='color', type='lower', addCoef.col = "black", title = 'Summer inp.PC1 synchrony', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+
+```
+
+# winter cor
+```{r}
+Compl.comm.PC1 %>% 
+  filter(Season=='Winter') %>% 
+  select(- c(year, Season)) %>% 
+  cor %>% 
+  corrplot(method='color', type='lower', addCoef.col = "black", title = 'Winter inp.PC1 synchrony', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+  
+```
+
+
+
+# plotting simple correlation between sites based on PC1 and delta PC1
+```{r}
+Compl.comm.PC1 %>% filter(Season=='Winter') %>% filter(year %in% c(1985:2018)) %>% select(c(3,4,5,6,7,8)) %>% as.matrix() %>% diff() %>% 
+  as.data.frame() %>% pairs(panel=panel.smooth)
+
+Compl.comm.PC1 %>% filter(Season=='Winter') %>% filter(year %in% c(1985:2018)) %>% select(c(3,4,5,6,7,8)) %>% 
+  as.data.frame() %>% pairs(panel=panel.smooth)
+
+```
+
+
+
+
+
+########################################################
+# Explore the combination of sites with minimum missin data - towards the common complete PCs
+#####################################################
+```{r}
+Common.PC1 %>% 
+  #filter(Season=='Summer') %>% 
+  filter(Season=='Winter') %>% 
+  select(year, Season,PC1.LI1, PC1.LI4,PC1.LI5, PC1.LI6,  PC1.CI2,PC1.CI4) %>% 
+  #select(year) %>% unique()
+  na.omit 
+```
+
+# Create the first *most complete set of PC1 scores for a few streams*. Will inpute missing values where reasonable
+```{r}
+Compl.comm.PC1=
+Common.PC1 %>% 
+  #filter(Season=='Summer') %>% 
+  #filter(Season=='Winter') %>% 
+  select(year, Season,PC1.LI1, PC1.LI4,PC1.LI5, PC1.LI6,  PC1.CI2,PC1.CI4)
+```
+
+# filling some missin values with means
+*summer of 1992 for LI1 and LI4 streams* is now filled
+```{r}
+which(is.na(Compl.comm.PC1$PC1.LI1)) # these is a summer value
+
+# Fill the summer NA in LI1 with the mean of summer scores
+Compl.comm.PC1$PC1.LI1 [which(is.na(Compl.comm.PC1$PC1.LI1))] =
+Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.LI1) %>% colMeans(na.rm=T)
+
+# Fill the summer NA in LI2 with the mean of summer scores
+Compl.comm.PC1$PC1.LI4 [which(is.na(Compl.comm.PC1$PC1.LI4))] =
+Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.LI4) %>% colMeans(na.rm=T)
+
+```
+
+# *fill LI5 stream*
+```{r}
+#Summer
+Compl.comm.PC1$PC1.LI5[ c(23,25,27,31)]# these are all summer NA for LI5
+
+# fill these summer scores with the overal mean of summer for this site
+Compl.comm.PC1$PC1.LI5[ c(23,25,27,31)]=rep( Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.LI5) %>% colMeans(na.rm=T), 4)
+
+#Winter
+Compl.comm.PC1$PC1.LI5[ c(24,26,32)] # these are winter months wiht NAs
+# fill
+Compl.comm.PC1$PC1.LI5[ c(24,26,32)]=rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.LI5) %>% colMeans(na.rm=T), 3)
+
+Compl.comm.PC1$PC1.LI5[ c(28)] # another winter nA
+Compl.comm.PC1$PC1.LI5[ c(28)] = Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.LI5) %>% colMeans(na.rm=T)
+```
+
+
+# *fill LI6 stream*
+```{r}
+#summer
+Compl.comm.PC1$PC1.LI6[c(5,23,27,29)]# these are summer months with NAs
+#fill
+Compl.comm.PC1$PC1.LI6[c(5,23,27,29)]=rep( Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.LI6) %>% colMeans(na.rm=T), 4)
+
+#winter
+Compl.comm.PC1$PC1.LI6[c(6,30)]
+
+Compl.comm.PC1$PC1.LI6[c(6,30)]= rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.LI6) %>% colMeans(na.rm=T), 2)
+
+Compl.comm.PC1$PC1.LI6[c(8,32)]# other winter NAs
+
+ Compl.comm.PC1$PC1.LI6[c(8,32)]= rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.LI6) %>% colMeans(na.rm=T), 2)
+
+
+```
+
+# *fill CI2 stream*
+```{r}
+#summer
+Compl.comm.PC1$PC1.CI2[c(1,3,5,23)]#these are suymmer months with NAs- the first three years are missing entirely
+
+Compl.comm.PC1$PC1.CI2[c(1,3,5,23)]= rep( Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.CI2) %>% colMeans(na.rm=T), 4)
+
+#winter
+Compl.comm.PC1$PC1.CI2[c(2,4,6)]# these are winter months with NAs
+#fill
+Compl.comm.PC1$PC1.CI2[c(2,4,6)] =rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.CI2) %>% colMeans(na.rm=T), 3)
+
+Compl.comm.PC1$PC1.CI2[c(8)]# a winter NAs
+Compl.comm.PC1$PC1.CI2[c(8)]=Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.CI2) %>% colMeans(na.rm=T)
+
+```
+
+
+# *fill CI4 stream*
+```{r}
+#summer
+Compl.comm.PC1$PC1.CI4[c(1,3,5,23)]#these are suymmer months with NAs- the first three years are missing entirely
+
+Compl.comm.PC1$PC1.CI4[c(1,3,5,23)]= rep( Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.CI4) %>% colMeans(na.rm=T), 4)
+
+#winter
+Compl.comm.PC1$PC1.CI4[c(2,4,6)]# these are winter months with NAs
+#fill
+Compl.comm.PC1$PC1.CI4[c(2,4,6)] =rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.CI4) %>% colMeans(na.rm=T), 3)
+
+
+```
+
+
+####### Correlation synchrony across 6 streams using PC1 scores
+# The *correlation [synchrony] plot for the imputed PC1 scores* across 6 streams
+```{r}
+Compl.comm.PC1 %>% 
+  filter(Season=='Summer') %>% 
+  select(- c(year, Season)) %>% 
+  cor %>% 
+  corrplot(method='color', type='lower', addCoef.col = "black", title = 'Summer inp.PC1 synchrony', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+
+```
+
+# winter cor
+```{r}
+Compl.comm.PC1 %>% 
+  filter(Season=='Winter') %>% 
+  select(- c(year, Season)) %>% 
+  cor %>% 
+  corrplot(method='color', type='lower', addCoef.col = "black", title = 'Winter inp.PC1 synchrony', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+  
+```
+
+
+
+# plotting simple correlation between sites based on PC1 and delta PC1
+```{r}
+Compl.comm.PC1 %>% filter(Season=='Winter') %>% filter(year %in% c(1985:2018)) %>% select(c(3,4,5,6,7,8)) %>% as.matrix() %>% diff() %>% 
+  as.data.frame() %>% pairs(panel=panel.smooth)
+
+Compl.comm.PC1 %>% filter(Season=='Winter') %>% filter(year %in% c(1985:2018)) %>% select(c(3,4,5,6,7,8)) %>% 
+  as.data.frame() %>% pairs(panel=panel.smooth)
+
+```
+
+
+
+
+#############
+# *the NAO*
+
+```{r}
+library(wsyn)
+```
+
+
+# Import NAO montly data
+```{r}
+library(readxl)
+NAOy <- read_excel("NAOdata.xlsx", sheet = "MonthlyNAO")
+names(NAOy)[1]='Year'
+```
+# NAO to long format; Filter years
+```{r}
+NAOm=
+NAOy %>% 
+  filter(Year>1980) %>% 
+  pivot_longer(-Year, names_to = 'month')
+
+NAOm$year_month=paste(NAOm$Year, NAOm$month, sep='_')
+
+NAOm=
+  NAOm %>% 
+  filter(Year<2020)
+
+```
+
+# Simple plot of NAO
+```{r}
+NAOm %>% 
+  ggplot()+aes(year_month, value, group=1)+geom_path()
+```
+
+# Work on NAO monthly data for wavelet modeling
+```{r}
+NAOy$times=rownames(NAOy)
+times.NAOy=NAOy %>% pull(times)
+times.NAOy=as.numeric(times.NAOy)
+```
+
+```{r}
+ts.NAOy=NAOy %>% pull(value)
+ts.NAOy=cleandat(ts.NAOy, times.NAOy, clev=1)
+wl.NAOy=wt(ts.NAOy$cdat, times.NAOy)
+
+plotmag(wl.NAOy)
+```
+
+# Work on NAO seasonal (keep the winter year as with chemical data)
+# Add tge winter year
+```{r}
+NAOm$winter.year= ifelse(NAOm$month %in% c('Jan','Feb','Mar'), NAOm$Year, ifelse(NAOm$month %in% c('Oct', 'Nov','Dec'), NAOm$Year+1, NAOm$Year))
+```
+# Add season to NAO
+```{r}
+NAOm$Season=ifelse(NAOm$month %in% c('Oct','Nov','Dec', 'Jan', 'Feb', 'Mar'), 'Winter', 'Summer')
+```
+
+# Add the seasonal mean to NAOm
+```{r}
+NAOm=
+  NAOm %>% group_by(winter.year, Season) %>% 
+  mutate(seas.mean=mean(value))
+```
+
+
+
+
+# The seasonal NAO, winter and summer
+*Bradley & Ormerdo take winter NAO as Dec-March (I also unclude oct-nov previous year)
+```{r}
+NAOseason=
+  NAOm%>% 
+  select(winter.year, Season, value) %>% 
+  group_by(winter.year, Season) %>%  summarise(mean.nao=mean(value))
+
+```
+
+```{r fig.width=8.5, fig.height=4}
+NAOseason %>% 
+  mutate(phase=ifelse(mean.nao >0, 'pos', 'neg' )) %>% 
+  #filter(Season=='Winter') %>% 
+  ggplot()+aes(winter.year, mean.nao)+geom_point(aes(col=phase))+
+  geom_path()+facet_wrap(~Season)+theme_bw()+xlab(NULL)+geom_hline(yintercept = 0, col='grey20')+scale_color_manual(values=c('steelblue','darkred' ))+
+   scale_x_continuous(breaks=seq(1981,2020, by=2))+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+
+```
+
+```{r}
+NAOseason %>% 
+   mutate(phase=ifelse(mean.nao >0, 'pos', 'neg' )) %>% 
+  filter(Season=='Winter') %>% 
+  ggplot()+aes(winter.year, mean.nao)+geom_point(aes(col=phase))+ geom_path()+facet_wrap(~Season)+theme_bw()+xlab(NULL)+geom_hline(yintercept = 0, col='grey20')+
+   scale_x_continuous(breaks=seq(1981,2020, by=2))+theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = 'none')+scale_color_manual(values=c('steelblue','red' ))+ylab('North Atlantic Oscillation (NAO')
+```
+
+
+# Extract timeseries for winter and summer NAO and fix for wavelet modelling
+```{r}
+ts.NAOw= NAOseason %>% filter(Season=='Winter') %>% pull(mean.nao)
+timesNAOw= NAOseason %>% filter(Season=='Winter') %>% pull(winter.year) %>% as.numeric()
+
+ts.NAOs= NAOseason %>% filter(Season=='Summer') %>% pull(mean.nao)
+timesNAOs= NAOseason %>% filter(Season=='Summer') %>% pull(winter.year) %>% as.numeric()
+
+#clean data for wavelet
+ts.NAOw=cleandat(ts.NAOw, timesNAOw, clev=1)
+ts.NAOs=cleandat(ts.NAOs, timesNAOs, clev=1)
+```
+
+
+
+#Wavelet NAO seasonal- WINTER
+# Plot of NAO winter wavelet decomposition
+```{r}
+wt.NAOw=wt(ts.NAOw$cdat, timesNAOw)
+plotmag(wt.NAOw, title='Winter NAO')
+
+pdf('wt.NAOw.pdf', w=6, h=4)
+  plotmag(wt.NAOw, title='Winter NAO')
+dev.off()
+```
+
+
+
+
+### Discharge data for LI1 
+# Import LI1 flow data from Fiona
+```{r}
+LI1_flow <- read_csv("Rain_flow_LB_Fiona/LI1BrianneFlume15minFlow.csv")
+str(LI1_flow)
+```
+
+# add details to LI1 flow data
+```{r}
+LI1_flow$Day=
+as.Date(LI1_flow$Day, format="%d/%m/%Y")
+
+LI1_flow$month=
+month(LI1_flow$Day)
+
+LI1_flow$Year=
+format(LI1_flow$Day, format='%Y')
+
+```
+
+#montly LI1 flow
+```{r}
+LI1_flow.m=
+  LI1_flow %>% group_by(Year, month) %>% summarise(m.mean=mean(Runoff, na.rm=T))
+
+LI1_flow.m$year_month=paste(LI1_flow.m$Year, LI1_flow.m$month, sep='_') 
+LI1_flow.m$time=rownames(LI1_flow.m)
+
+summary(LI1_flow.m)
+
+LI1_flow.m %>% 
+  ggplot()+aes(time, m.mean, group=1)+geom_line()+geom_smooth()
+
+```
+
+
+
+
+##################
+# the seasonal streamflow for LI1
+*add winter year*
+```{r}
+LI1_flow.m$Year=as.numeric(LI1_flow.m$Year)
+
+LI1_flow.m$winter.year=ifelse(LI1_flow.m$month %in% c(10,11,12), LI1_flow.m$Year+1, LI1_flow.m$Year)# add winter year
+LI1_flow.m$season=ifelse(LI1_flow.m$month %in% c(10,11,12,1,2,3), 'Winter', 'Summer')# add season
+
+```
+# Derive seasonal flow mean for LI1
+```{r}
+LI1.flow.seas=LI1_flow.m %>% group_by(season, winter.year) %>% summarise(m.season=mean(m.mean, na.rm=T))
+```
+
+# Extract winter wavelet transform - only from 1996
+#plot wt for LI1 flow
+```{r}
+ts.LI1.flow.w=LI1.flow.seas %>% filter(season=='Winter') %>% pull(m.season)
+times.LI1.flow.w=LI1.flow.seas %>% filter(season=='Winter') %>% pull(winter.year) %>% as.numeric()
+
+wt.LI1.flow.w=
+  wt(cleandat(ts.LI1.flow.w, times.LI1.flow.w, clev=1)$cdat, times.LI1.flow.w )
+
+plotmag(wt.LI1.flow.w, title='LI1 winter runoff')
+
+```
+
+# Save plot for LI1 flow
+```{r}
+pdf('wt_LI1flow.pdf', w=6, h=4)
+plotmag(wt.LI1.flow.w, title='LI1 winter runoff')
+dev.off()
+```
+
+
+
+
+
+
+##### Rain data ####
+## Import the rain data from Fiona (shared folder)
+```{r}
+library(readr)
+LB_rain<- read_csv("Rain_flow_LB_Fiona/LB_monthly_rain_stats.csv")
+LB_rain[,1]=NULL
+
+```
+# subset rain years and stream matchin LB10 bio data
+```{r}
+LB10_rain=
+LB_rain %>% filter(Site %in% codeID) %>% filter(Ante %in% yearID)
+```
+
+# derive the yearly means for rain data (including summer and winter)
+```{r}
+LB10_rain_ymeans=
+LB10_rain %>% 
+  group_by(Site, Ante) %>% 
+  summarise(m.sum=mean(sum.r), m.mean=mean(mean.r), m.wet=mean(wet_freq.r), m.dry=mean(dry_freq.r))
+```
+
+
+# Trends in rain stats overall
+```{r}
+LB10_rain_ymeans %>% 
+  ggplot()+aes(Ante, m.mean)+geom_smooth()+facet_wrap(~Site)+geom_path()
+
+LB10_rain_ymeans %>% 
+  ggplot()+aes(Ante, m.dry)+geom_smooth()+facet_wrap(~Site)
+
+```
+
+
+# derive the yearly means for rain data (preceding winter only)
+# and add the NAOw values
+```{r}
+LB10_rain_ymeans.w=
+LB10_rain %>% 
+  filter(Season=='Winter') %>% 
+  group_by(Site, Ante) %>% 
+  summarise(m.sum=mean(sum.r), m.mean=mean(mean.r), m.wet=mean(wet_freq.r), m.dry=mean(dry_freq.r))
+
+
+LB10_rain_ymeans.w$NAOw=
+  NAOseason[NAOseason$Season=='Winter',]$mean.nao[match(LB10_rain_ymeans.w$Ante,  NAOseason[NAOseason$Season=='Winter',]$winter.year)]
+
+```
+
+# Plot winter rain stats trends including relation with NAOw
+*some increasing trends in n of wet days over time*
+*positive NAO has more wet days, but not overall higher amount of rain*
+```{r}
+LB10_rain_ymeans.w %>% 
+  ggplot()+aes(Ante, m.mean)+geom_smooth()+facet_wrap(~Site)+geom_path()+ylab('Mean winter rain')+xlab(NULL)
+
+LB10_rain_ymeans.w %>% 
+  ggplot()+aes(Ante, m.wet)+geom_smooth()+facet_wrap(~Site)+geom_path()+ylab('Mean winter # wet days')+xlab(NULL)
+
+
+LB10_rain_ymeans.w %>% 
+  ggplot()+aes(NAOw, m.wet)+geom_smooth(method='lm')+geom_jitter(aes(col=Site), width=0.2)+ylab('Monthly # wet days')+xlab("Winter NAO")+geom_vline(xintercept = 0, col='grey70')
+
+LB10_rain_ymeans.w %>% 
+  ggplot()+aes(NAOw, m.mean)+geom_smooth(method='lm')+geom_jitter(aes(col=Site), width=0.2)+ylab('Mean monthly rain')+xlab("Winter NAO")+geom_vline(xintercept = 0, col='grey70')
+                                                                  
+                                                                  
+                
+```
+
+# save plot of monthly rain nao
+```{r}
+plot_monthlyrain_nao=
+  LB10_rain_ymeans.w %>% 
+  ggplot()+aes(NAOw, m.mean)+geom_smooth(method='lm')+geom_jitter(aes(col=Site), width=0.2)+ylab('Mean monthly winter rain')+xlab("Winter NAO")+geom_vline(xintercept = 0, col='grey70')
+  
+```
+
+
+
+
+# *Wavelet of monthly mean rain*
+#The phasor does not make sense as there are same rain series for many streams
+# Plot of monthly rain LI8 wt
+```{r}
+plotmag(
+    wpmf(
+cleandat(
+LB10_rain_ymeans.w %>% 
+  as.data.frame() %>% 
+  select(c(Site, Ante, m.mean)) %>% 
+  pivot_wider(names_from = Ante, values_from = m.mean) %>% select(-'Site') %>% as.matrix(),
+  times=time.lb10, clev=4)$cdat, times=time.lb10, sigmethod = 'quick'), title='Wpmf mean.monthly')
+
+plotmag(
+wt(
+cleandat(
+LB10_rain_ymeans.w %>% 
+  as.data.frame() %>% 
+  select(c(Site, Ante, m.mean)) %>% 
+  pivot_wider(names_from = Ante, values_from = m.mean) %>% filter(Site=='LI8') %>% select(-'Site') %>% as.matrix(),
+times=time.lb10, clev=1)$cdat, time.lb10), title='WT monthly rain LI8'
+)
+
+
+plotmag(
+wt(
+cleandat(
+LB10_rain_ymeans.w %>% 
+  as.data.frame() %>% 
+  select(c(Site, Ante, m.wet)) %>% 
+  pivot_wider(names_from = Ante, values_from = m.wet) %>% filter(Site=='LI8') %>% select(-'Site') %>% as.matrix(),
+times=time.lb10, clev=4)$cdat, time.lb10), title='WT monthly wetdays LI8'
+)
+
+
+
+```
+
+# Plot of wavelet monthly rain LI8
+```{r}
+pdf('wtLI8.rain.pdf', w=6, h=4)
+plotmag(
+wt(
+cleandat(
+LB10_rain_ymeans.w %>% 
+  as.data.frame() %>% 
+  select(c(Site, Ante, m.mean)) %>% 
+  pivot_wider(names_from = Ante, values_from = m.mean) %>% filter(Site=='LI8') %>% select(-'Site') %>% as.matrix(),
+times=time.lb10, clev=4)$cdat, time.lb10), title='Mean monthly winter rain LI8'
+)
+  
+  dev.off()
+```
+
+
+# combined plot rain and winter temperature vs nao
+```{r fig.width=7, fig.height=3.5}
+plot_monthlyrain_nao +
+  
+plot_winterT_nao   + plot_layout(guide='collect')
+```
+
+
+
+###########################
+#### *Temperature data* 
+# Import he air T data (from Fiona shared folder)
+```{r}
+Tmonthly=
+  read_csv("Rain_flow_LB_Fiona/HadUK_monthly_tas_1980to2019.csv")
+```
+# get the yearly mean winter T
+```{r}
+Tyearly=
+Tmonthly %>% 
+  filter(Season=='Winter') %>% 
+  filter(Site %in% codeID) %>% filter(Ante %in% yearID) %>% 
+  group_by(Ante, Site) %>% 
+  summarise(mean.w.T=mean(value))
+```
+
+#Check trends in yearly winter T for the LB10 sites
+*clearly rsing trends, especially up to 2000
+```{r}
+Tyearly %>% 
+  ggplot()+aes(Ante, mean.w.T, group=1)+geom_path()+facet_wrap(~Site)+geom_smooth()+xlab(NULL)+ylab('Mean winter air T')
+```
+
+# No particular strong timescale of variation in winter T based on wavelt transform
+```{r}
+plotmag(
+wt(
+cleandat(
+Tyearly %>% 
+  as.data.frame() %>% 
+  select(c(Site, Ante, mean.w.T)) %>% 
+  pivot_wider(names_from = Ante, values_from = mean.w.T) %>% filter(Site=='LI8') %>% select(-'Site') %>% as.matrix(),
+times=time.lb10, clev=4)$cdat, time.lb10), title='WT yearly w_T LI8'
+)
+```
+
+```{r}
+Tyearly$NAOw=
+  NAOseason[NAOseason$Season=='Winter',]$mean.nao[match(Tyearly$Ante,  NAOseason[NAOseason$Season=='Winter',]$winter.year)]
+```
+# positive NAO match warmer T, as expected
+```{r}
+Tyearly %>% 
+  ggplot()+aes(NAOw, mean.w.T)+geom_jitter(aes(col=Site), width=0.2)+geom_smooth(method='lm')+ylab('Mean winter air T')+xlab('Winter NAO')+geom_vline(xintercept = 0, col='grey70')
+
+
+
+```
+
+```{r}
+plot_winterT_nao=
+  Tyearly %>% 
+  ggplot()+aes(NAOw, mean.w.T)+geom_jitter(aes(col=Site), width=0.2)+geom_smooth(method='lm')+ylab('Mean winter air T')+xlab('Winter NAO')+geom_vline(xintercept = 0, col='grey70')
+
+  
+```
+
+
+# Plot both winter Temp and Rain vs NAO
+```{r}
+library(patchwork)
+
+plot_wtNAOw +
+  plot_wtLI8.rain
+
+plot_winterT_nao + plot_monthlyrain_nao
+
+```
+
+
+
+# Calculate moving window of PC1 synchrony
+
+# first derive the raw values (not cleandat) of PC1 winter, and put them in ts (site x years)
+```{r}
+Compl.comm.PC1.raw.ts=
+Compl.comm.PC1 %>% filter(Season=='Winter') %>% filter(year %in% c(1985:2018)) %>% select(c(3,4,5,6,7,8)) %>% 
+  t()
+
+# add year as colname
+colnames(Compl.comm.PC1.raw.ts)=Compl.comm.PC1 %>% filter(Season=='Winter') %>% filter(year %in% c(1985:2018)) %>% pull(1)
+
+```
+
+# then run the mw to get synchrony for 6 years span (as done for richness, abund)
+
+```{r}
+PC1.w.synch_mw=as.data.frame(matrix(nrow=length(time.window5), ncol=1))
+
+
+rownames(PC1.w.synch_mw)=time.window5
+colnames(PC1.w.synch_mw)='PC1_winter.synch.mw'
+
+
+
+# the richness synch as simple cor
+for(y in 1: length(time.window5)){
+ PC1.w.synch_mw[y,]= mean(
+   cor(
+     t(Compl.comm.PC1.raw.ts[,c(y:(y+5))]), method='spearman'
+     )
+   )
+}
+```
+
+# then add the mwNAOw
+```{r}
+PC1.w.synch_mw$wNAOwindow=wNAO_window$NAOwindow[match(rownames(PC1.w.synch_mw), wNAO_window$time.window5)]
+```
+# Plot mw synch for PC1 winter vs NAOmw (not great synch effect of NAO on PC1 chemistry)
+```{r}
+PC1.w.synch_mw %>% 
+  ggplot()+aes(wNAOwindow, PC1_winter.synch.mw, label=row.names(abund.synch_mw))+geom_point(size=2)+geom_text_repel(size=2.5)+
+  geom_smooth( col='grey50', alpha=.3, method='lm', se=F, linetype='dashed')+ylab('PC1 winter - synchrony mw')+ xlab('Winter NAO window')
+```
+
+
+
+# Derive *variance of PC1 winter for each moving window*
+
+```{r}
+PC1w.var.mw=as.data.frame(matrix(nrow=length(time.window5), ncol=6))
+
+
+rownames(PC1w.var.mw)=time.window5
+colnames(PC1w.var.mw)=c('PC1.LI1','PC1.LI4','PC1.LI5', 'PC1.LI6','PC1.CI2','PC1.CI4')
+
+
+for(y in 1: length(time.window5)){
+  PC1w.var.mw[y,]=apply(Compl.comm.PC1.raw.ts[,c(y:(y+5))], 1,var)
+}
+
+```
+
+```{r}
+PC1w.var.mw$wNAOmw=wNAO_window$NAOwindow[match(rownames(PC1w.var.mw), wNAO_window$time.window5)]
+```
+# Plot of variance in PC1 vs NAO window
+*some evident sign that positive nao phases are linked to higher PC1 variance*
+```{r}
+
+PC1w.var.mw %>% 
+  pivot_longer(cols=c(1:6)) %>% 
+  ggplot()+aes(wNAOmw, log(value))+geom_point(aes(col=name))+geom_smooth(method='lm')+geom_smooth(aes(col=name), size=0.3, method='lm', se=F)+ ylab('Variance PC1 (log)')+xlab('Winter NAO window')
+
+
+```
+
+
+```{r}
+library(nlme)
+```
+
+# Model for NAO effect on PC1 variance (moving window)
+```{r}
+PC1w.var.mw %>% 
+  pivot_longer(c(1:6)) %>% 
+  lme(log(value)~wNAOmw, random=~1|name, data=.) %>% 
+  summary()
+```
+
+
+
+
+
+
+
+
+
+
+###### ###################
+### *Biotic synchrony* ###
+
+########################
+
+
+# Import the invertebrate data as given by Isabelle
+*will work on subsetting, species, sites, and imputing some missing species abundance values*
+```{r}
+bugs<- read.csv("~/Documents/LB_synchrony/Brianne Inverts to 2018 .csv")
+```
+
+# wotk on the site code. Add 'I' and remove 'DLB' from the string names
+```{r}
+bugs$Code=str_remove(bugs$Code, "DLB")
+str_sub(bugs$Code, 2,1)='I'
+bugs$Code
+bugs$X=NULL
+```
+
+# How many years per stream
+*site.occur* 
+```{r}
+table(bugs$Code, bugs$year)
+rowSums(table(bugs$Code, bugs$year))
+
+site.occur=(table(bugs$Code, bugs$year))
+
+```
+
+# Plot the site occurrence, number of years sampled
+*need to impute missing years for each spp in some sites*
+# year 
+```{r fig.width=6}
+site.occur %>% 
+  as.data.frame() %>% 
+  #filter(Var2!=c('1981', '1982')) %>% 
+ ggplot()+aes(Var2, Var1)+geom_tile(col='grey40',aes(fill=as.factor(Freq)))+xlab(NULL)+ylab(NULL)+theme(legend.position = 'none')+
+  theme(axis.text.x = element_text(angle = 90, vjust =0.4, hjust =-1))
+```
+
+# To create a complete and common df I should exclude LI3,LI5,GI1,GI2,CI6,CI3 and
+1981,1982,1994, 2008,2009,2011
+
+
+```{r}
+site.occur %>% 
+  as.data.frame() %>% 
+  filter(!Var2 %in% c('1981', '1982', '1994', '2008','2009','2011')) %>%
+  filter(!Var1 %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% 
+ ggplot()+aes(Var2, Var1)+geom_tile(col='grey40',aes(fill=as.factor(Freq)))+theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+```
+# Look at the LB10 sites with actual years holes, to be filled
+
+```{r}
+site.occur %>% 
+  as.data.frame() %>% 
+  filter(!Var2 %in% c('1981', '1982')) %>%
+  filter(!Var1 %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% 
+ ggplot()+aes(Var2, Var1)+geom_tile(col='grey40',aes(fill=as.factor(Freq)))+theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+ ggtitle('LB10 most complete')+xlab(NULL)+ylab(NULL)
+```
+
+
+
+
+
+# overall spp abundance and occurrences
+```{r fig.width=7}
+spp_occur=sort(colSums((decostand(bugs[,-c(1,2)], 'pa'))), decreasing = T)
+plot(spp_occur)
+
+spp_abb=sort(colSums(bugs[,-c(1,2)]), decreasing = T)
+plot(spp_abb)
+
+plot(log(spp_abb), log(spp_occur))
+
+```
+
+
+```{r}
+spp_site_occur=
+  sort(
+  bugs %>% 
+  select(-year) %>% 
+  group_by(Code) %>% summarise_all(sum) %>% 
+  select(-Code) %>% 
+  decostand('pa') %>% 
+  colSums(),
+  decreasing = T)
+
+```
+
+
+```{r}
+spp_year_occ=
+bugs %>% 
+  select(-Code) %>% 
+  group_by(year) %>% summarise_all(sum) %>% 
+  select(-year) %>% 
+  decostand('pa') %>% 
+  colSums() %>% 
+  sort(decreasing = T)
+```
+
+
+
+
+# gather bugs data in long format -useful for subsequent manipulations
+*this still contains all spp and sites*
+```{r}
+bugs.long=
+bugs %>% 
+  gather(Species, abund, -c(Code, year))
+```
+
+
+
+# Here subsetting *spp occurring in > 5 streams & more than 7years*, while excluding certain streams for good (too few years).
+# The bugs subset with species occurring in > 6 streams *bugs.subs6*
+# LI5 seems to have many years, but large hole in 1995-2000
+# this is also like *LB10* in Ecology
+```{r}
+
+bugs.subs6=
+  cbind(bugs %>%
+        filter(!year %in% c('1981', '1982', '1994', '2008','2009','2011')) %>% # excluding these years
+        filter(!Code %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% # excluding these sites
+        select(Code,year) ,
+  
+        bugs %>% 
+        filter(!year %in% c('1981', '1982', '1994', '2008','2009','2011')) %>%
+        filter(!Code %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% 
+        select( names(spp_site_occur[spp_site_occur>5]) & names(spp_year_occ[spp_year_occ>7])) 
+       )
+```
+
+
+
+# Create a vector with species identity for the reduced df with 10 streams and no holes
+```{r}
+speciesID.subs=
+colnames(bugs.subs6[,-c(1,2)])
+```
+
+# The list of *species synchrony* for each species between each stream in the reduced set of sites (LB10- bugs.subs6). Based on simple correlation
+*still with a few holes (no species imputation yet)*
+```{r}
+spp.list.corr<-list()
+
+for(spp in 1:length(speciesID.subs)) {
+  spp.list.corr[[spp]]= 
+  #speciesID.subs=as.factor(names(spp_site_occur[spp_site_occur>6]))
+  
+  sppcorr=
+  bugs.subs6 %>% 
+  select(Code, year, speciesID.subs[spp]) %>%  
+  spread(Code, value=speciesID.subs[spp]) %>% select(-year) %>% 
+  cor(method='spearman') %>% 
+  gdata::unmatrix() %>% 
+  data.frame() %>% 
+  cbind(rep(speciesID.subs[spp], 1 )) %>% 
+    cbind(row.names(.)) %>% 
+  `colnames<-`(c('synch', 'Species','site.pair'))# use this function: `colnames<-` to assign column names within a pipe
+    
+  }
+  
+
+spp.list.corr[[17]]
+
+```
+
+# Create a list similar to spp.list.corr but as simple correlation matrix. Used for calculating the mean across species.
+
+```{r}
+list2<-list()
+
+for(spp in 1:length(speciesID.subs)) {
+  list2[[spp]]= 
+  #speciesID.subs=as.factor(names(spp_site_occur[spp_site_occur>6]))
+  
+  sppcorr=
+  bugs.subs6 %>% 
+  select(Code, year, speciesID.subs[spp]) %>%  
+  spread(Code, value=speciesID.subs[spp]) %>% select(-year) %>% 
+  cor(method='spearman')
+}
+
+list2[41]
+```
+
+# Derive the mean synchrony across sites based on the mean synchrony of species in LB10 
+```{r}
+array2=array(as.numeric(unlist(list2)), dim=c(length(unique(bugs.subs6$Code)), length(unique(bugs.subs6$Code)), length(speciesID.subs)))
+dimnames(array2)=list( unique(bugs.subs6$Code), unique(bugs.subs6$Code),speciesID.subs )
+
+array2[,,1]
+
+```
+
+# The mean synchrony across LB10 sites based on simple correlation across populations from species occurring > 6 streams
+```{r}
+mean_spp_corr.mat=
+apply(array2, c(1,2), mean, na.rm=T)
+```
+
+```{r fig.width=7}
+install.packages('corrplot')
+library(corrplot)
+corrplot(round(mean_spp_corr.mat,2), method='color', type='lower', addCoef.col = "black", title = 'Mean pop synchrony (corr)', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+```
+
+
+
+
+# Combine the population synchronies in the list in one long synchronies dataframe
+#*synchronies_spp*
+```{r}
+synchronies_spp=
+rbindlist(spp.list.corr)
+
+synchronies_spp=
+synchronies_spp %>% 
+  filter(synch != 1)
+```
+# add the *stream distances*
+```{r}
+synchronies_spp$dist=dist.pairs$dist[match(synchronies_spp$site.pair, dist.pairs$site_pairs)]
+```
+
+
+#add the mean species synchrony overall
+```{r}
+synchronies_spp %>% 
+  group_by(Species) %>% 
+  mutate(mean.spp.synch=mean(synch))
+```
+
+
+
+
+# Add the columns of 'from' and 'to' in the synchronies_spp df
+```{r}
+
+synchronies_spp=cbind(synchronies_spp,
+colsplit(synchronies_spp$site.pair, ':', c('from', 'to'))
+                     )
+```
+# Add the chemical distance (derived in the 'Env.data' script) to the species synchrony df
+```{r}
+synchronies_spp$chem_dist=synchronies.df$chem.dist[match(synchronies_spp$site.pair, synchronies.df$site.pair2)]
+
+#ad the chemical summer synch
+synchronies_spp$chem_synch.s=synchronies.df$synch.s [match(synchronies_spp$site.pair, synchronies.df$site.pair2)]
+
+# add the chamical winter synch
+synchronies_spp$chem_synch.w=synchronies.df$synch.w [match(synchronies_spp$site.pair, synchronies.df$site.pair2)]
+
+```
+
+
+
+
+# Plot the mean populations synchrony vs chemical distance...
+```{r}
+synchronies_spp %>% 
+  ggplot()+aes(chem_dist, synch)+geom_smooth()+theme_bw()+
+  geom_point(aes(col=Species), alpha=0.2)+theme(legend.position = 'none')+
+  ylab('Population synchrony (corr)')
+```
+
+
+# Plot the mean populations synchrony vs chemical synchr...
+*no apparent relation between simple population synch and chemical (PC1) simple synchrony*
+```{r}
+synchronies_spp %>% 
+  ggplot()+aes(chem_synch.s, synch)+geom_smooth()+theme_bw()+
+  geom_point(aes(col=Species), alpha=0.2)+theme(legend.position = 'none')+
+  ylab('Population synchrony (corr)')
+
+synchronies_spp %>% 
+  ggplot()+aes(chem_synch.w, synch)+geom_smooth()+theme_bw()+
+  geom_point(aes(col=Species), alpha=0.2)+theme(legend.position = 'none')+
+  ylab('Population synchrony (corr)')
+
+
+synchronies_spp %>% 
+  ggplot()+aes(chem_synch.s, synch)+geom_smooth()+theme_bw()+
+  theme(legend.position = 'none')+
+  ylab('Population synchrony (corr)')
+
+synchronies_spp %>% 
+  ggplot()+aes(chem_synch.w, synch)+geom_smooth()+theme_bw()+
+  theme(legend.position = 'none')+
+  ylab('Population synchrony (corr)')
+
+
+```
+
+
+
+
+
+#######################################
+## Imputation of missing species data
+###########################
+
+
+# Look at the subsetted LB10 data 
+*again selecting (as with bugs.subs6) spp occurring in >5 streams and more than 7y* 
+```{r}
+
+
+bugs.imp=
+ cbind(bugs %>%
+        filter(!year %in% c('1981', '1982')) %>% # excluding these years
+        filter(!Code %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% # excluding these sites
+        select(Code,year) ,
+
+bugs %>% 
+        filter(!year %in% c('1981', '1982')) %>%
+        filter(!Code %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% 
+        select( names(spp_site_occur[spp_site_occur>5]) & names(spp_year_occ[spp_year_occ>7]))
+)
+```
+
+
+ Which sites in LB10?
+```{r fig.width=6}
+site.occur %>% 
+  as.data.frame() %>% 
+  filter(!Var2 %in% c('1981', '1982')) %>%
+  filter(!Var1 %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% 
+ ggplot()+aes(Var2, Var1)+geom_tile(col='grey40',aes(fill=as.factor(Freq)))+theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+ ggtitle('LB10 most complete')+theme(legend.position = 'none')+xlab(NULL)+ylab(NULL)
+```
+
+# Load some packages for imputation functions
+```{r}
+install.packages('imputeTS')
+library(imputeTS)
+
+install.packages('zoo')
+library(zoo)
+```
+
+
+
+# Function that uses the *imputeTS::na_ma function* to get the moving average (4y before & 4y after) mean for missing values (using floor to convert <1 to zeros)
+```{r}
+NA2ma=function(x){
+  x=floor(imputeTS::na_ma(x, 4, weighting='simple'))
+  return(x)
+}
+
+
+NA2ma(c(2,3,5,6,7,81,NA,6,6,6,6))
+```
+
+
+
+
+# isolate single site for *imputation for each species*
+# *CI1.subs*
+*imputation using the subset data with spp in >6 sites*
+```{r}
+b.CI1.imp=
+  bugs.imp %>% 
+  filter(Code=='CI1')
+
+b.CI1.imp=# add extra row with missing year and NA for spp abundances
+b.CI1.imp %>% 
+  add_row(Code='CI1', year=1991)
+
+# sort to order by year
+b.CI1.imp=
+b.CI1.imp[order(b.CI1.imp$year),]
+
+
+# impute species as median abundance for the entire time series
+b.CI1.imp=
+  cbind.data.frame(b.CI1.imp[,c(1,2)],
+   apply(b.CI1.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+# just a comparison of the effect of imputing using the overall sp median (make too low imputation)
+zio=
+  cbind.data.frame(b.CI1.subs[,c(1,2)],
+   apply(b.CI1.subs[,-c(1,2)], 2, NA2median)
+  )
+
+```
+
+```{r}
+plot(
+rowSums(decostand(b.CI1.imp[,-c(1,2)], 'pa')), type='l')
+
+
+plot(
+rowSums(decostand(zio[,-c(1,2)], 'pa')), type='l')
+
+```
+
+# CI2 imputation
+*this site is missing 1991 (as all sites) and 2009 , 2011*
+```{r}
+b.CI2.imp=
+  bugs.imp %>% 
+  filter(Code=='CI2')
+
+b.CI2.imp=# add extra row with missing year and NA for spp abundances
+b.CI2.imp %>% 
+  add_row(Code='CI2', year=1991)
+
+b.CI2.imp=# add extra row with missing year and NA for spp abundances
+b.CI2.imp %>% 
+  add_row(Code='CI2', year=2009)
+
+b.CI2.imp=# add extra row with missing year and NA for spp abundances
+b.CI2.imp %>% 
+  add_row(Code='CI2', year=2011)
+
+
+# sort to order by year
+b.CI2.imp=
+b.CI2.imp[order(b.CI2.imp$year),]
+
+
+# impute species as median abundance for the entire time series
+b.CI2.imp=
+  cbind.data.frame(b.CI2.imp[,c(1,2)],
+   apply(b.CI2.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(
+rowSums(decostand(b.CI2.imp[,-c(1,2)], 'pa')), type='l')
+
+
+```
+
+#CI4 imputation
+*site is missing only 1991*
+```{r}
+b.CI4.imp=
+  bugs.imp %>% 
+  filter(Code=='CI4')
+
+b.CI4.imp=# add extra row with missing year and NA for spp abundances
+b.CI4.imp %>% 
+  add_row(Code='CI4', year=1991)
+
+# sort to order by year
+b.CI4.imp=
+b.CI4.imp[order(b.CI4.imp$year),]
+
+
+# impute species as median abundance for the entire time series
+b.CI4.imp=
+  cbind.data.frame(b.CI4.imp[,c(1,2)],
+   apply(b.CI4.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(
+rowSums(decostand(b.CI4.imp[,-c(1,2)], 'pa')), type='l')
+
+
+```
+
+#CI5 imputation
+*site is missing only 1991, 2009, 2011*
+```{r}
+b.CI5.imp=
+  bugs.imp %>% 
+  filter(Code=='CI5')
+
+b.CI5.imp=# add extra row with missing year and NA for spp abundances
+b.CI5.imp %>% 
+  add_row(Code='CI5', year=1991)
+
+
+b.CI5.imp=# add extra row with missing year and NA for spp abundances
+b.CI5.imp %>% 
+  add_row(Code='CI5', year=2009)
+
+b.CI5.imp=# add extra row with missing year and NA for spp abundances
+b.CI5.imp %>% 
+  add_row(Code='CI5', year=2011)
+
+
+# sort to order by year
+b.CI5.imp=
+b.CI5.imp[order(b.CI5.imp$year),]
+
+
+# impute species as median abundance for the entire time series
+b.CI5.imp=
+  cbind.data.frame(b.CI5.imp[,c(1,2)],
+   apply(b.CI5.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.CI5.imp$year,
+rowSums(decostand(b.CI5.imp[,-c(1,2)], 'pa')), type='l')
+
+
+```
+
+
+
+# Impute LI1 *only 1991 missing*
+
+```{r}
+b.LI1.imp=
+  bugs.imp %>% 
+  filter(Code=='LI1')
+
+b.LI1.imp=# add extra row with missing year and NA for spp abundances
+b.LI1.imp %>% 
+  add_row(Code='LI1', year=1991)
+
+# sort to order by year
+b.LI1.imp=
+b.LI1.imp[order(b.LI1.imp$year),]
+
+# impute species as median abundance for the entire time series
+b.LI1.imp=
+  cbind.data.frame(b.LI1.imp[,c(1,2)],
+   apply(b.LI1.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.LI1.imp$year,
+rowSums(decostand(b.LI1.imp[,-c(1,2)], 'pa')), type='l')
+
+```
+
+
+# Impute LI2 *only 1991 missing*
+
+```{r}
+b.LI2.imp=
+  bugs.imp %>% 
+  filter(Code=='LI2')
+
+b.LI2.imp=# add extra row with missing year and NA for spp abundances
+b.LI2.imp %>% 
+  add_row(Code='LI2', year=1991)
+
+# sort to order by year
+b.LI2.imp=
+b.LI2.imp[order(b.LI2.imp$year),]
+
+# impute species as median abundance for the entire time series
+b.LI2.imp=
+  cbind.data.frame(b.LI2.imp[,c(1,2)],
+   apply(b.LI2.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.LI2.imp$year,
+rowSums(decostand(b.LI2.imp[,-c(1,2)], 'pa')), type='l')
+
+```
+
+
+# Impute LI4 *missing 1991, 2008, 2009, 20011*
+
+```{r}
+b.LI4.imp=
+  bugs.imp %>% 
+  filter(Code=='LI4')
+
+b.LI4.imp=# add extra row with missing year and NA for spp abundances
+b.LI4.imp %>% 
+  add_row(Code='LI4', year=1991)
+
+b.LI4.imp=# add extra row with missing year and NA for spp abundances
+b.LI4.imp %>% 
+  add_row(Code='LI4', year=2008)
+
+b.LI4.imp=# add extra row with missing year and NA for spp abundances
+b.LI4.imp %>% 
+  add_row(Code='LI4', year=2009)
+
+b.LI4.imp=# add extra row with missing year and NA for spp abundances
+b.LI4.imp %>% 
+  add_row(Code='LI4', year=2011)
+
+
+# sort to order by year
+b.LI4.imp=
+b.LI4.imp[order(b.LI4.imp$year),]
+
+# impute species as median abundance for the entire time series
+b.LI4.imp=
+  cbind.data.frame(b.LI4.imp[,c(1,2)],
+   apply(b.LI4.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.LI4.imp$year,
+rowSums(decostand(b.LI4.imp[,-c(1,2)], 'pa')), type='l')
+
+```
+
+
+
+# Impute LI6 *missing 1991, 1994*
+
+```{r}
+b.LI6.imp=
+  bugs.imp %>% 
+  filter(Code=='LI6')
+
+b.LI6.imp=# add extra row with missing year and NA for spp abundances
+b.LI6.imp %>% 
+  add_row(Code='LI6', year=1991)
+
+b.LI6.imp=# add extra row with missing year and NA for spp abundances
+b.LI6.imp %>% 
+  add_row(Code='LI6', year=1994)
+
+
+# sort to order by year
+b.LI6.imp=
+b.LI6.imp[order(b.LI6.imp$year),]
+
+# impute species as median abundance for the entire time series
+b.LI6.imp=
+  cbind.data.frame(b.LI6.imp[,c(1,2)],
+   apply(b.LI6.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.LI6.imp$year,
+rowSums(decostand(b.LI6.imp[,-c(1,2)], 'pa')), type='l')
+
+```
+
+
+# Impute LI7 *missing 1991, 1994*
+
+```{r}
+b.LI7.imp=
+  bugs.imp %>% 
+  filter(Code=='LI7')
+
+b.LI7.imp=# add extra row with missing year and NA for spp abundances
+b.LI7.imp %>% 
+  add_row(Code='LI7', year=1991)
+
+b.LI7.imp=# add extra row with missing year and NA for spp abundances
+b.LI7.imp %>% 
+  add_row(Code='LI7', year=1994)
+
+
+# sort to order by year
+b.LI7.imp=
+b.LI7.imp[order(b.LI7.imp$year),]
+
+# impute species as median abundance for the entire time series
+b.LI7.imp=
+  cbind.data.frame(b.LI7.imp[,c(1,2)],
+   apply(b.LI7.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.LI7.imp$year,
+rowSums(decostand(b.LI7.imp[,-c(1,2)], 'pa')), type='l')
+
+```
+
+
+
+# Impute LI8 *missing 1991, 1994, 2011*
+
+```{r}
+b.LI8.imp=
+  bugs.imp %>% 
+  filter(Code=='LI8')
+
+b.LI8.imp=# add extra row with missing year and NA for spp abundances
+b.LI8.imp %>% 
+  add_row(Code='LI8', year=1991)
+
+b.LI8.imp=# add extra row with missing year and NA for spp abundances
+b.LI8.imp %>% 
+  add_row(Code='LI8', year=1994)
+
+
+b.LI8.imp=# add extra row with missing year and NA for spp abundances
+b.LI8.imp %>% 
+  add_row(Code='LI8', year=2011)
+
+
+
+# sort to order by year
+b.LI8.imp=
+b.LI8.imp[order(b.LI8.imp$year),]
+
+# impute species as median abundance for the entire time series
+b.LI8.imp=
+  cbind.data.frame(b.LI8.imp[,c(1,2)],
+   apply(b.LI8.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.LI8.imp$year,
+rowSums(decostand(b.LI8.imp[,-c(1,2)], 'pa')), type='l')
+
+```
+
+
+## RBIND all imputed sites into one combined df
+*this LB10.imp, includes spp observed in >5 streams & 7years, to allow analysis of synchrony using wavelet methods*
+
+```{r}
+LB10.imp=rbind.data.frame(b.CI1.imp, b.CI2.imp, b.CI4.imp, b.CI5.imp, b.LI1.imp, b.LI2.imp, b.LI4.imp,
+                          b.LI6.imp, b.LI7.imp, b.LI8.imp)
+
+rownames(LB10.imp)=paste(LB10.imp$Code, LB10.imp$year, sep="_")
+```
+
+
+# *How many years for each species in the LB10.imp (some spp are present in <7y)*
+I think this is because the vector with years for each spp comes from the complete data (all streams)
+So when I use it to subset spp in the imputed df, two species then had lower n of years than that.
+```{r}
+LB10.imp %>% 
+  select(-Code) %>% 
+  group_by(year) %>% summarise_all(sum) %>% 
+  select(-year) %>% 
+  decostand('pa') %>% 
+  colSums() %>% 
+  sort(decreasing = T)
+```
+
+
+
+# Before jumping into the wavelet method, let's see how imputing influence the overall mean pop synchrony
+
+# Create a vector with species identity for the reduced df with 10 streams and no holes
+```{r}
+speciesID.imp=
+colnames(LB10.imp[,-c(1,2)])
+```
+
+# The list of *species synchrony imputed* for each species between each stream in the reduced set of sites (LB10.imp). Based on simple correlation
+```{r}
+spp.list.corr.imp<-list()
+
+for(spp in 1:length(speciesID.imp)) {
+  spp.list.corr.imp[[spp]]= 
+  #speciesID.subs=as.factor(names(spp_site_occur[spp_site_occur>6]))
+  
+  sppcorr=
+  LB10.imp %>% 
+  select(Code, year, speciesID.imp[spp]) %>%  
+  spread(Code, value=speciesID.imp[spp]) %>% select(-year) %>% 
+  cor(method='spearman') %>% 
+  gdata::unmatrix() %>% 
+  data.frame() %>% 
+  cbind(rep(speciesID.imp[spp], 1 )) %>% 
+    cbind(row.names(.)) %>% 
+  `colnames<-`(c('synch.imp', 'Species','site.pair'))# use this function: `colnames<-` to assign column names within a pipe
+    }
+  
+
+spp.list.corr.imp[[12]]
+
+```
+# Derive the long format of *species synchrony with imputed values*
+*this is like the synchronies_spp but with imputed values from missing years-spp*
+```{r}
+synchronies_spp.imp=
+rbindlist(spp.list.corr.imp)
+
+synchronies_spp.imp=
+synchronies_spp.imp %>% 
+  filter(synch.imp != 1)
+
+#add column with site-pairs and species
+synchronies_spp.imp$site.pair_species=
+  paste(synchronies_spp.imp$site.pair, synchronies_spp.imp$Species, sep='_')
+```
+
+# add the nique site-pair and species combination for the synchronies_spp data (not the imputed)
+```{r}
+synchronies_spp$site.pair_species=
+  paste(synchronies_spp$site.pair, synchronies_spp$Species, sep='_')
+```
+
+# add the imputed species level synchronies to the synchronies_df (where there are info on dist, zonation trt)
+```{r}
+synchronies_spp$synch.imputed=
+  synchronies_spp.imp$synch.imp[match(synchronies_spp$site.pair_species, synchronies_spp.imp$site.pair_species)]
+```
+
+# Nice correlation between *imputed and observed synchrony for each species*
+```{r}
+synchronies_spp %>% 
+  ggplot()+aes(synch, synch.imputed)+geom_point()
+
+summary(lm(synch~synch.imputed, data=synchronies_spp))
+
+```
+
+
+# Create a list similar to spp.list.corr but as simple correlation matrix. Used for calculating the mean across species.
+
+```{r}
+list2.imp<-list()
+
+for(spp in 1:length(speciesID.imp)) {
+  list2.imp[[spp]]= 
+  #speciesID.subs=as.factor(names(spp_site_occur[spp_site_occur>6]))
+  
+  sppcorr=
+  LB10.imp %>% 
+  select(Code, year, speciesID.imp[spp]) %>%  
+  spread(Code, value=speciesID.imp[spp]) %>% select(-year) %>% 
+  cor(method='spearman')
+}
+
+list2.imp[41]
+```
+
+# Derive the mean synchrony across sites based on the mean synchrony of species in LB10 imputed missing years
+```{r}
+array2.imp=array(as.numeric(unlist(list2.imp)), dim=c(length(unique(LB10.imp$Code)), length(unique(LB10.imp$Code)), length(speciesID.imp)))
+dimnames(array2.imp)=list( unique(LB10.imp$Code), unique(LB10.imp$Code),speciesID.imp )
+
+array2.imp[,,43]
+
+```
+
+# The mean synchrony across LB10 imputed sites based on simple correlation across populations from species occurring > 6 streams
+```{r}
+mean_spp_corr.mat.imp=
+apply(array2.imp, c(1,2), mean, na.rm=T)
+```
+
+# *Plotting the man pop synchrony with imputated years shows no effect of imputation, if anything, overall synch values seems lower!*
+```{r fig.width=7}
+#library(corrplot)
+corrplot(round(mean_spp_corr.mat.imp,2), method='color', type='lower', addCoef.col = "black", title = 'Mean pop synchrony (corr-imputed)', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+```
+
+
+
+# extract diversity specific timeseries *needed to claculate on loops etc*
+*abund.ts*
+```{r}
+richness.ts=
+lb10.div %>% 
+  select(c(Code,year,richness)) %>%
+  pivot_wider(names_from = year, values_from = richness) %>% as.data.frame()
+
+shannon.ts=
+lb10.div %>% 
+  select(c(Code,year,shannon)) %>%
+  pivot_wider(names_from = year, values_from = shannon) %>% as.data.frame()
+
+
+simpson.ts=
+lb10.div %>% 
+  select(c(Code,year,simpson)) %>%
+  pivot_wider(names_from = year, values_from = simpson) %>% as.data.frame()
+
+rownames(richness.ts)=richness.ts$Code
+rownames(shannon.ts)=shannon.ts$Code
+rownames(simpson.ts)=simpson.ts$Code
+
+richness.ts$Code=NULL
+shannon.ts$Code=NULL
+simpson.ts$Code=NULL
+
+
+abund.ts=
+  lb10.div %>% 
+  select(c(Code, year, abund)) %>% 
+  pivot_wider(names_from = year, values_from = abund) %>% as.data.frame()
+
+abund.ts$Code=NULL
+
+```
+
+
+###############################
+## The moving window synchrony
+###############################
+
+#function that does the pop synch for each spp and rbindlist the list
+```{r}
+pop_synch_f=function(df){
+  testlist<-list()
+
+for(spp in 1:length(speciesID.subs)) {
+testlist[[spp]]= 
+  #speciesID.subs=as.factor(names(spp_site_occur[spp_site_occur>6]))
+  
+  #sppcorr=
+  df %>% 
+  select(Code, year, speciesID.subs[spp]) %>%  
+  spread(Code, value=speciesID.subs[spp]) %>% select(-year) %>% 
+  cor(method='spearman') %>% 
+  gdata::unmatrix() %>% 
+  data.frame() %>% 
+  cbind(rep(speciesID.subs[spp], 1 )) %>% 
+    cbind(row.names(.)) %>% 
+  `colnames<-`(c('synch', 'Species','site.pair'))# use this function: `colnames<-` to assign column names within a pipe
+  
+ }
+ 
+  res=data.table::rbindlist(testlist) 
+  res=res %>%  filter(synch != 1)
+  res$geodist=dist.pairs$dist[match(res$site.pair, dist.pairs$site_pairs)] # add the geodist
+  return(res)
+  
+}
+```
+
+
+# create a timewindow list to include year given year in the window, needed to subset df while running the synchrony function
+```{r}
+time.windowlist=list()
+ywindow=5
+for(i in 1:(length(yearID)-ywindow)){
+time.windowlist[[i]]=  (yearID[i:(i+5)])}
+
+```
+
+# run the pop_synch function over each yeargroup in window ,as defined by time.windolist
+```{r}
+
+pop_synchronies_mw.list=list()
+
+for(mwy in 1:length(time.windowlist)){
+pop_synchronies_mw.list[[mwy]]=
+pop_synch_f(LB10.imp %>% filter(year %in% time.windowlist[[mwy]]))
+}
+
+pop_synchronies_mw.list[[24]]
+
+```
+# Now calculate the man across species of synchrony for each pairwise site
+```{r}
+meanpop_synchronies_mw.list=list()
+
+for(mwy in 1:length(time.window5)){
+meanpop_synchronies_mw.list[[mwy]]=
+pop_synchronies_mw.list[[mwy]] %>% 
+  group_by(site.pair) %>% 
+  summarise(mean.pop.synch=mean(synch), geodist=mean(geodist)) %>% 
+  mutate(timewindow=rep(time.window5[[mwy]], 90)) # add timewindow info 90 rows for each yearwindow (site-pairs)
+         }
+
+meanpop_synchronies_mw.list[[1]]
+```
+
+
+```{r}
+library(gtools)
+#meanpop_synchronies_mw$NAOmw.q4=quantcut(meanpop_synchronies_mw$NAOmw, q=4)
+
+#meanpop_synchronies_mw$NAOmw.q6=quantcut(meanpop_synchronies_mw$NAOmw, q=6)
+
+meanpop_synchronies_mw$NAOmw.q5=quantcut(meanpop_synchronies_mw$NAOmw, q=5)
+
+
+
+
+```
+
+# Plot of mean population synchorny moving window vs quantile NAO
+```{r fig.width=5.5}
+meanpop_synchronies_mw %>% 
+ggplot()+aes(geodist, mean.pop.synch, col=NAOmw.q4)+geom_smooth(method='lm', se=F)+scale_color_brewer (palette='Reds')+
+  ylab('Mean population synchrony (mw)')+xlab('Distance')+geom_smooth(col='grey40', method='lm', size=2, linetype='dashed')
+
+meanpop_synchronies_mw %>% 
+ggplot()+aes(geodist, mean.pop.synch, col=NAOmw.q4)+geom_smooth(se=F)+scale_color_brewer (palette='Reds')+
+  ylab('Mean population synchrony (mw)')+xlab('Distance')
+
+
+meanpop_synchronies_mw %>% 
+ggplot()+aes(geodist, mean.pop.synch, col=NAOmw.q5)+geom_smooth(method='lm', se=F)+scale_color_brewer (palette='Reds')+
+  ylab('Mean population synchrony (mw)')+xlab('Distance')+geom_smooth(col='grey40', method='lm', size=1.5, linetype='dashed')
+
+
+```
+
+
+# simple model of synchrony ~ geodistance*NAO interaction
+*positive interaction effect*
+```{r}
+meanpop_synchronies_mw
+
+m1=glm(mean.pop.synch~geodist*NAOmw, data=meanpop_synchronies_mw, family='gaussian')
+summary(m1)
+
+```
+
+# simple models for different quantiles of NAO with differences in both slope and intercept
+```{r}
+m0=glm(mean.pop.synch~geodist, data= meanpop_synchronies_mw %>% filter(NAOmw.q5 =="[-0.142,0.0639]"))
+
+m7=glm(mean.pop.synch~geodist, data=meanpop_synchronies_mw %>% filter(NAOmw.q5 =="(0.636,1.02]"))
+
+summary(m0)
+summary(m7)
+
+```
+
+
+# Model random effect of NAO quantile to mirror the plot with decay...
+*some support for the inclusion of a random slope effects, not only intercept for the different quatiles* 
+```{r}
+
+m0=
+  lme(mean.pop.synch ~ geodist ,  data=meanpop_synchronies_mw)
+
+m1=
+  lme(mean.pop.synch ~ geodist , random=~1|NAOmw.q5, data=meanpop_synchronies_mw)
+
+m2=
+  lme(mean.pop.synch ~ geodist , random=~1+geodist|NAOmw.q5, data=meanpop_synchronies_mw)
+
+
+summary(m1)
+summary(m2)
+
+
+anova(m1,m2)
+```
+
+
+#########################################
+# Calculate Abundance synchrony moving window
+#########################################
+
+
+```{r}
+abund.synch_mw=as.data.frame(matrix(nrow=length(time.window5), ncol=1))
+
+
+rownames(abund.synch_mw)=time.window5
+colnames(abund.synch_mw)='Abund.synch.mw'
+
+
+
+# the richness synch as simple cor
+for(y in 1: length(time.window5)){
+ abund.synch_mw[y,]= mean(
+   cor(
+     t(abund.ts[,c(y:(y+5))]), method='spearman'
+     )
+   )
+}
+```
+
+```{r}
+abund.synch_mw$wNAOwindow=wNAO_window$NAOwindow[match(rownames(abund.synch_mw), wNAO_window$time.window5)]
+```
+
+
+# Plot abundance synchrony mw vs NAO
+
+```{r fig.width=6}
+
+
+abund.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  #mutate(RegRich.mw= reg.richness %>% rollmean(k=6, align = 'center')) %>% 
+  #mutate(MeanRich.mw= rowMeans(Richness.mw)) %>% 
+  ggplot()+aes(wNAOwindow, Abund.synch.mw, label=row.names(abund.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),]))+geom_point(size=2)+geom_text_repel(size=3)+
+  geom_smooth( col='grey50', alpha=.3, method='lm')+ylab('Abundance synchrony mw')+ xlab('Winter NAO mw')
+
+# using all windows
+abund.synch_mw %>% 
+  #mutate(RegRich.mw= reg.richness %>% rollmean(k=6, align = 'center')) %>% 
+  #mutate(MeanRich.mw= rowMeans(Richness.mw)) %>% 
+  ggplot()+aes(wNAOwindow, Abund.synch.mw, label=row.names(abund.synch_mw))+geom_point(size=2)+geom_text_repel(size=3)+
+  geom_smooth( col='grey50', alpha=.3, method='lm')+ylab('Abundance synchrony mw')+ xlab('Winter NAO mw')
+
+```
+
+
+
+# Plot the abundance mw over time along with NAO window
+```{r fig.width=6}
+
+abund.synch_mw %>% 
+  ggplot()+aes(row.names(abund.synch_mw), Abund.synch.mw, group=1)+geom_point(size=3)+
+  geom_path(aes(row.names(abund.synch_mw) ,wNAOwindow), col='blue')+theme(axis.text.x = element_text(angle=45, hjust=1))+
+  xlab(NULL)+ylab('Mean abundance snchrony')+scale_y_continuous(sec.axis = sec_axis(~.*1, name = "Winter NAO mw"))+theme(axis.title.y.right = element_text(color = "blue")) +theme(axis.text.y.right = element_text(color='blue'))+theme(axis.title = element_text(size=12), axis.text.x = element_text(size=12)) +scale_x_discrete(labels=time.window5_skip)
+
+```
+
+
+
+
+
+#############################
+### Wavelet linear model ####
+# *testing effect of NAO vs abundance*
+
+```{r}
+abund.ts
+t_NAOw_85.18.exp
+
+dat=list(as.matrix(abund.ts), t_NAOw_85.18.exp)
+dat=lapply(FUN=function(x){cleandat(x,time.lb10,1)$cdat},X=dat)
+
+```
+
+
+```{r}
+wlm_nao_abu=wlm(dat, time.lb10, resp=1, pred=2, norm='powall' )
+
+wlm_nao_abu$coefs
+summary(wlm_nao_abu)
+wlm_nao_abu$coher
+
+syncexpl(wlm_nao_abu)
+
+
+
+```
+
+
+# *The predicted synchrony in abundance from NAO alone*
+```{r}
+predabund_sync=predsync(wlm_nao_abu)
+
+plotmag(predabund_sync, title='NAO-Predicted synchrony abundance')
+```
+
+```{r}
+
+plotmag(
+    wpmf(
+cleandat(
+lb10.div %>% 
+  select(c(Code,year,abund)) %>%
+  pivot_wider(names_from = year, values_from = abund) %>% select(-Code) %>% as.matrix(),
+   times=time.lb10, clev=4)$cdat, times=time.lb10, sigmethod = 'quick'), title='Wpmf Abundance')
+```
+
+```{r}
+#library(wsyn)
+
+bandtest(wlm_nao_abu, c(4,6))
+
+```
+
+
+# Extract the yearly temperature series, to use in wavelet modelling along NAO
+```{r}
+Tyearly.wide=
+Tyearly %>% 
+  pivot_wider(values_from = mean.w.T, names_from = Site) %>% as.data.frame()
+
+rownames(Tyearly.wide)=Tyearly.wide$Ante
+Tyearly.wide$Ante=NULL
+Tyearly.wide
+
+```
+# that is the trasposed df to use
+```{r}
+t(Tyearly.wide)
+```
+
+```{r}
+library(wsyn)
+```
+
+# Prepare for linear wavelet model using also Temperature 
+```{r}
+dat2=list(as.matrix(abund.ts), t_NAOw_85.18.exp, t(Tyearly.wide))
+dat2=lapply(FUN=function(x){cleandat(x,time.lb10,1)$cdat},X=dat2)
+```
+
+# Wavelet model including Tempe does not add much explained variation. 
+```{r}
+wlm_nao.Temp_abu=wlm(dat2, time.lb10, resp=1, pred=c(2,3), norm='powall' )
+
+
+summary(wlm_nao.Temp_abu)
+wlm_nao_abu$coher
+
+syncexpl(wlm_nao.Temp_abu)
+```
+
+```{r}
+plotmag(predsync(wlm_nao.Temp_abu))
+```
+
+
+
+
+#######################
+## Hieratchical stability partitioning (Wang's style)
+######################
+
+
+# This is the original *Wang's code for partitioning*
+```{r}
+var.partition <-function(metacomm_tsdata){
+## The function "var.partition" performs the partitioning of variability 
+## across hierarchical levesl within a metacommunity.
+## The input array "metacomm_tsdata" is an N*T*M array. The first dimension represents N species, 
+## the second represents time-series observations of length T, and the third represents M local communities. 
+## The output includes four variability and four synchrony metrics as defined in the main text.
+## Note that, to be able to handle large metacommunities, this code has avoided calculating all covariance.
+
+ts_metacom <-apply(metacomm_tsdata,2,sum,na.rm=T)
+ts_patch <-apply(metacomm_tsdata,c(2,3),sum,na.rm=T)
+ts_species <-apply(metacomm_tsdata,c(1,2),sum,na.rm=T)
+sd_metacom <-sd(ts_metacom,na.rm=T)
+sd_patch_k <-apply(ts_patch,2,sd,na.rm=T)
+sd_species_i <-apply(ts_species,1,sd,na.rm=T)
+sd_species_patch_ik <-apply(metacomm_tsdata,c(1,3),sd,na.rm=T)
+mean_metacom <-mean(ts_metacom,na.rm=T)
+
+CV_S_L <-sum(sd_species_patch_ik,na.rm=T)/mean_metacom  #local-scale average species variability (weighted average of local                                                             population variability across sites and species)
+CV_C_L <-sum(sd_patch_k,na.rm=T)/mean_metacom            #local-scale average community variability (weighted average of community                                                             variability across sites)
+CV_S_R <-sum(sd_species_i,na.rm=T)/mean_metacom          #regional-scale average species variability (weighted average of                                                                       metapopulation variability across species)
+CV_C_R <-sd_metacom/mean_metacom                  #metacommunity variability (CV total metacommunity biomass)
+
+phi_S_L2R <-CV_S_R/CV_S_L  #species-level spatial synchrony (weighted average intraspecific across species)
+phi_C_L2R <-CV_C_R/CV_C_L  #community-level spatial synchrony  (of total community biomass across sites)
+phi_S2C_L <-CV_C_L/CV_S_L  #local-scale species synchrony     (weighted average interspecific across patches)
+phi_S2C_R <-CV_C_R/CV_S_R   #regional-scale species synchrony  (among different meta-populations [sum of covariances                                                                                                           beween species]
+partition_3level <-c(CV_S_L=CV_S_L, CV_C_L=CV_C_L, CV_S_R=CV_S_R, CV_C_R=CV_C_R, phi_S_L2R=phi_S_L2R, phi_C_L2R=phi_C_L2R, phi_S2C_L=phi_S2C_L, phi_S2C_R=phi_S2C_R)
+return(partition_3level)
+}
+```
+
+
+## Convert the bio data into an array to feed the var.partition function. Will use the imputed data this time on LB10
+
+
+
+# gather bugs data in long format -useful for subsequent manipulations
+```{r}
+bugs.long.imp=
+LB10.imp %>% 
+  gather(Species, abund, -c(Code, year))
+```
+
+# code, year and species to factor
+```{r}
+bugs.long.imp$Code=as.factor(bugs.long.imp$Code)
+bugs.long.imp$year=as.factor(bugs.long.imp$year)
+bugs.long.imp$Species=as.factor(bugs.long.imp$Species)
+```
+
+# define the number of years, sites and species overall
+```{r}
+nlevels(bugs.long.imp$year)
+nlevels(bugs.long.imp$Code)
+nlevels(bugs.long.imp$Species)
+```
+
+# create vector keeping year, site and species ID - useful for working in loops
+```{r}
+yearID=sort(unique(bugs.long.imp$year))
+codeID=sort(unique(bugs.long.imp$Code))
+speciesID=sort(unique(bugs.long.imp$Species))
+```
+
+# Create a list keeping matrix of species x year - each spp a timeseries for each stream
+```{r}
+mylist=list()
+```
+
+```{r}
+
+for(code in 1:nlevels(bugs.long.imp$Code)){
+  yearID=sort(unique(bugs.long.imp$year))
+  codeID=sort(unique(bugs.long.imp$Code))
+  speciesID=sort(unique(bugs.long.imp$Species))
+  bugs.long.code=bugs.long.imp[bugs.long.imp$Code==codeID[code],]
+  bugs.long.mat.code=(spread(bugs.long.code[,-1], year, abund, drop=F, fill=0))
+   rownames(bugs.long.mat.code)=bugs.long.mat.code[,1]
+   bugs.long.mat.code[,1]=NULL
+ mylist[[code]]=bugs.long.mat.code
+}
+```
+
+#  see the list
+```{r}
+mylist[[2]]
+```
+
+# Convert the list of species x year (for each stream) into an *ARRAY* with dim = species x years x site
+*this could be useful for the CV stability function of Wang*
+*note that all spp are included here 65, not only 60*
+```{r}
+myarray=array(as.numeric(unlist(mylist)), dim=c(nlevels(bugs.long.imp$Species), nlevels(bugs.long.imp$year), nlevels(bugs.long.imp$Code)))
+dimnames(myarray)=list(speciesID, yearID, codeID)
+
+myarray[,,1]
+myarray[,,3]
+
+dim(myarray)# 60 species, 34 years, 10 sites (with no holes, i.e. imputed)
+```
+
+# can use cor between two sites df, to get the cerrelation (synch) between each spp (not only intra-spp cor)
+```{r}
+# spp X years X sites
+dim(myarray)
+# here the correlation between site 1 and 2, for each spp pair (including same spp)
+xx=cor(t(myarray[,,1]), t(myarray[,,2]))
+
+```
+
+
+## *Nest the lb10.imp over each site*
+```{r}
+LB10.imp.n=LB10.imp %>% 
+  group_by(Code) %>% 
+  nest()
+```
+
+
+# Working with the cody::stability and synchrony functions
+# *Stability function* to run over moving window of n years
+```{r}
+
+# this function only works within nested version of lb10 nested for sites
+
+stabf=function(df){
+df %>% 
+  #filter(Code==lb10.siteID[1]) %>% 
+  pivot_longer(col=speciesID.imp) %>% # remove also 
+  #select(-Code) %>% 
+  mutate(name=as.factor(name), year=as.integer(year)) %>% 
+ community_stability (time.var = 'year',  abundance.var = 'value')
+}
+
+
+stabf(b.CI1.imp)
+```
+
+#tests
+```{r}
+
+b.CI1.imp %>% 
+  pivot_longer(col=speciesID.imp)
+
+LB10.imp.n$data[[1]] %>% 
+  pivot_longer(col=speciesID.imp)
+
+# the stability funciton b works on both the nested and original site data
+stabf(b.CI1.imp) # 
+
+stabf(LB10.imp.n$data[[1]])
+
+```
+
+
+
+# run the stability function on each nested site
+```{r}
+LB10.imp.n=
+LB10.imp.n %>% 
+  mutate(com.stability=unlist(map(data, stabf)))
+
+
+LB10.imp.n$data[[1]]
+```
+
+
+
+# function that claculate the comm stability metric *for a window of 5 years (moving by 1y each time)*
+```{r}
+
+
+
+stabf.mw=function(df){
+zio=list()
+ywindow=5
+for(i in 1:(nrow(df)-ywindow)){
+zio[[i]]=  stabf(df[i:(i+5),])}
+return(unlist(zio))
+}
+
+stabf.mw(b.CI1.imp)
+
+stabf.mw(LB10.imp.n$data[[1]])
+
+```
+
+```{r}
+stabf.mw(b.LI7.imp)
+```
+
+
+
+
+# run the moving window stability function on each site (nested)
+```{r}
+
+LB10.imp.n =
+LB10.imp.n %>% 
+  mutate(stability.mw=(map(data, stabf.mw)))
+
+LB10.imp.n$stability.mw[[1]]
+
+rbindlist(list(LB10.imp.n$stability.mw))
+
+```
+
+#extract the moving window of comm stability into a df
+```{r}
+
+time.window5=matrix(nrow=29)
+for(i in 1:29){
+time.window5[i,]=paste(time.lb10[i], time.lb10[i+5], sep='_')  
+}
+
+comm.stab.mw=cbind.data.frame(time.window=time.window5,
+  rbindlist(list(LB10.imp.n$stability.mw))
+)
+
+colnames(comm.stab.mw)[2:11]=rownames(stability.metrics)
+```
+
+
+
+
+# *Synchrony function* to run over moving window of n years
+```{r}
+
+# this function only works within nested version of lb10 nested for sites
+
+synchf=function(df){
+df %>% 
+  #filter(Code==lb10.siteID[1]) %>% 
+  pivot_longer(col=speciesID.imp) %>% # remove also 
+  #select(-Code) %>% 
+  mutate(name=as.factor(name), year=as.integer(year)) %>% 
+ synchrony (time.var = 'year',species.var = 'name',  abundance.var = 'value', metric = 'Loreau')
+}
+
+
+synchf(b.CI1.imp)
+```
+
+# synchrony funciton over 5 y moving window (as done fo stability)
+```{r}
+
+synchf.mw=function(df){
+zio=list()
+ywindow=5
+for(i in 1:(nrow(df)-ywindow)){
+zio[[i]]=  synchf(df[i:(i+5),])}
+return(unlist(zio))
+}
+```
+
+
+
+# run the moving window *stability function (codyn) on each site (nested)*
+```{r}
+
+LB10.imp.n =
+LB10.imp.n %>% 
+  mutate(synch.loreau.mw=(map(data, synchf.mw)))
+
+LB10.imp.n$synch.loreau.mw[[1]]
+
+rbindlist(list(LB10.imp.n$stability.mw))
+```
+
+# extractt he synchrony moving window loreau
+```{r}
+synch.loreau.mw=cbind.data.frame(time.window=time.window5,
+  rbindlist(list(LB10.imp.n$synch.loreau.mw))
+)
+
+colnames(synch.loreau.mw)[2:11]=rownames(stability.metrics)
+```
+
+
+
+
+# *Synchrony function (codyn)* to run over moving window of n years
+```{r}
+
+# this function only works within nested version of lb10 nested for sites
+
+synchf=function(df){
+df %>% 
+  #filter(Code==lb10.siteID[1]) %>% 
+  pivot_longer(col=speciesID.imp) %>% # remove also 
+  #select(-Code) %>% 
+  mutate(name=as.factor(name), year=as.integer(year)) %>% 
+ synchrony (time.var = 'year',species.var = 'name',  abundance.var = 'value', metric = 'Loreau')
+}
+
+
+synchf(b.CI1.imp)
+```
+
+# synchrony funciton over 5 y moving window (as done fo stability)
+```{r}
+
+synchf.mw=function(df){
+zio=list()
+ywindow=5
+for(i in 1:(nrow(df)-ywindow)){
+zio[[i]]=  synchf(df[i:(i+5),])}
+return(unlist(zio))
+}
+```
+
+
+
+# run the *moving window synchrony function (codyn) on each site (nested)*
+```{r}
+
+LB10.imp.n =
+LB10.imp.n %>% 
+  mutate(synch.loreau.mw=(map(data, synchf.mw)))
+
+LB10.imp.n$synch.loreau.mw[[1]]
+
+rbindlist(list(LB10.imp.n$stability.mw))
+```
+
+# extractt he synchrony moving window loreau
+```{r}
+synch.loreau.mw=cbind.data.frame(time.window=time.window5,
+  rbindlist(list(LB10.imp.n$synch.loreau.mw))
+)
+
+colnames(synch.loreau.mw)[2:11]=rownames(stability.metrics)
+```
+
+
+
+
+### *Wang decmposition using moving window*
+
+```{r}
+wang_mw=as.data.frame(matrix(nrow=length(time.window5), ncol=length(res.wang.part)))
+rownames(wang_mw)=time.window5
+colnames(wang_mw)=names(res.wang.part)
+
+var.partition(myarray[,c(1: (1+5)),])
+
+
+for(y in 1: length(time.window5)){
+ wang_mw[y,]= var.partition(myarray[,c(y: (y+5)),])
+}
+
+```
+
+# add wNAOwindow on the wang's stability window
+```{r}
+wang_mw$wNAO.window=wNAO_window$NAOwindow
+```
+
+# *wNAO affects all components of Wang stability*
+```{r}
+wang_mw %>% 
+  pivot_longer(cols=c(1:8)) %>% 
+  ggplot()+aes(wNAO.window, value)+geom_point()+geom_smooth(method='lm')+facet_wrap(~name, scales = 'free')
+```
+
+# Plot of NAO effect on Wangs stability across levels
+```{r fig.width=5.5, fig.height=4.4}
+wang_mw[c(1,3,4,9)] %>% 
+  pivot_longer(cols=c(1:3)) %>% 
+  mutate(name=factor(name, levels=c('CV_S_L', 'CV_S_R', 'CV_C_R'))) %>% 
+  ggplot()+aes(wNAO.window, value, col=name)+geom_point(size=2, alpha=.2)+
+  #geom_line(size=1.2, alpha=0.3)+  
+  scale_y_log10()+
+  
+  geom_smooth(method='lm', se=F)+theme(legend.position = 'top')+ylab('Variability (log10)')+theme(axis.title = element_text(size=12))+
+  scale_color_manual(values=c("orange", 'forestgreen', 'grey20'), labels=c('CV population', 'CV metapopulation', 'CV metacommunity'))+theme(legend.title = element_blank())+ylab('Variability')+xlab('Winter NAO window')
+
+  
+
+
+
+```
+
+
+
+# Autocorrelation models for variability CV (pop, metapop, metacommunity - Wang) vs NAO
+```{r}
+mod.CV_S_L=
+  gls(CV_S_L~wNAO.window, data=wang_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),], cor=corAR1(0.6))
+# population CV barely sig
+summary(mod.CV_S_L)
+ 
+
+mod.CV_S_R=
+  gls(CV_S_R~wNAO.window, data=wang_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),], cor=corAR1(0.8))
+
+summary(mod.CV_S_R)
+
+mod_CV_C_R=
+gls(CV_C_R~wNAO.window, data=wang_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),], cor=corAR1(0.6))
+
+
+```
+
+
+
+# Plot of community synchorny (phi) at local and regional scale
+*note here I also add funcitonal diversity althought not still present in the workflow in theory*
+```{r}
+cbind.data.frame(wang_mw, FunRao.mw=rowMeans(FunRao.mw)) %>% 
+  pivot_longer(cols=c(7,8), names_to = 'SynchComponent') %>% 
+  mutate(SynchComponent=factor(SynchComponent)) %>% 
+  mutate(SynchComponent_r=recode_factor(SynchComponent, phi_S2C_L='Local_Synchony', phi_S2C_R='Regional_Synchrony')) %>% 
+  ggplot()+aes(wNAO.window, value )+geom_point(size=3)+geom_smooth(method='lm')+
+  facet_wrap(~SynchComponent_r)+theme(legend.position = 'right')+ylab('Community synchrony')+theme(axis.title = element_text(size=12))+xlab('Winter NAO window')
+```
+
+
+
+# Autocor Modles for community synchrony (local and regional)
+
+```{r}
+mod.phi_S2C_L=
+  gls(phi_S2C_L~wNAO.window, data=wang_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),], cor=corAR1(0.6))
+
+summary(mod.phi_S2C_L)
+
+mod.phi_S2C_R=
+  gls(phi_S2C_R~wNAO.window, data=wang_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),], cor=corAR1(0.8))
+summary(mod.phi_S2C_R)
+```
+
+
+
+### Must include the functional trait part
+*trait analyses*
+
+
+
+#import the trait data
+*this df is not normlised [0-1], will do this below*
+```{r}
+library(readxl)
+Spp_subs_trt <- read_excel("Spp_subs_trt.xlsx", 
+    sheet = "complete_upd")
+
+names(Spp_subs_trt)[1]='taxa_id'
+
+Spp_subs_trt=
+Spp_subs_trt %>% 
+  column_to_rownames(var='taxa_id')
+
+```
+
+
+
+# *order the trait df with same order of LB10.imp (same species order)
+```{r}
+Spp_subs_trt=
+Spp_subs_trt[order(match(rownames(Spp_subs_trt), speciesID.imp)),]
+  
+```
+
+
+
+# block for trait modelities
+```{r}
+block=c(10, 3, 5, 6, 6, 4, 6, 4, 3, 2, 2,2 )
+```
+
+# names of traits repeated
+*this is useful for functions along traits*
+```{r}
+trt_names=rep(c('zonation','t_range','t_pref',  'feed', 'loc','drought', 'resis','size','diss','disp.cap', 'life.dur', 'lc' ), 
+            block)
+
+names(trt_names)=colnames(Spp_subs_trt)
+```
+
+
+
+# Fuzzy code the traits to convert [0-1] and the NAs to mean of trait category *needed for functcomp*
+*this converts NAs (missing info) for spp into the mean od that trait over all spp*
+The infuence of spp with NAs on the final functional diversity is unclear in this case
+```{r}
+subs_trt_fuzzy=
+prep.fuzzy.var(Spp_subs_trt, block)
+
+subs_trt_fuzzy
+```
+
+
+# Work on functional redundancy via SYNCSA functions
+```{r}
+install.packages('SYNCSA')
+library(SYNCSA)
+```
+
+# rao.diversity and redundancy
+*the simpson rao is the null value based on random dissimilarities or where each spp is different in traits*
+```{r}
+rao.div=
+rao.diversity(LB10.imp[,-c(1,2)], subs_trt_fuzzy)
+```
+
+```{r}
+rao.div=
+cbind.data.frame(colsplit(rownames(as.data.frame(rao.div$FunRao)), '_', names=c('Code', 'year')), rao.div$FunRao, rao.div$FunRedundancy)
+names(rao.div)[3]='FunRao'
+names(rao.div)[4]='FunRedundancy'
+
+```
+
+
+
+# Calculate moving window of site FunRao and Fun Redun
+
+```{r}
+FunRao.mw=as.data.frame(matrix(nrow=length(time.window5), ncol=10))
+rownames(FunRao.mw)=time.window5
+colnames(FunRao.mw)=lb10.siteID
+
+for(s in 1: length(lb10.siteID)){
+  
+FunRao.mw[,s]=rollmean(rao.div %>%  filter(Code==lb10.siteID[s]) %>% pull(FunRao), k=6, align = 'center')
+}
+
+
+
+FunRedun.mw=as.data.frame(matrix(nrow=length(time.window5), ncol=10))
+rownames(FunRedun.mw)=time.window5
+colnames(FunRedun.mw)=lb10.siteID
+
+for(s in 1: length(lb10.siteID)){
+  
+FunRedun.mw[,s]=rollmean(rao.div %>%  filter(Code==lb10.siteID[s]) %>% pull(FunRedundancy), k=6, align = 'center')
+}
+
+
+```
+
+
+Plot synchrony vs FunDiversity with slopes for each site
+```{r}
+
+plot1b=
+cbind.data.frame(
+synch.loreau.mw %>% pivot_longer(cols=c(2:11), values_to = 'CommSynch.Loreau'),
+FunRao.mw %>%  pivot_longer(cols=c(1:10), values_to = 'FunRao', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+   ggplot()+aes(FunRao, CommSynch.Loreau)+geom_point(aes(col=name))+geom_smooth(method='lm')+ylab('Community synchrony')+
+  theme(axis.title = element_text(size=12))+scale_color_discrete(name='Stream')+xlab('Functional diversity')+geom_smooth(aes(col=name), se=F, method='lm', size=0.2)
+
+plot2b=
+cbind.data.frame(
+comm.stab.mw %>% pivot_longer(cols=c(2:11), values_to = 'CommStab'),
+FunRao.mw %>%  pivot_longer(cols=c(1:10), values_to = 'FunRao', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+   ggplot()+aes(FunRao, 1/CommStab)+geom_point(aes(col=name))+geom_smooth(method='lm', linetype='dashed')+ylab('Community variability')+
+   theme(axis.title = element_text(size=12))+scale_color_discrete(name='Stream')+xlab('Functional diversity')+
+  geom_smooth(aes(col=name), se=F, method='lm', size=0.2)
+
+
+
+```
+
+
+
+```{r fig.width=7, fig.height=4.5}
+library(patchwork)
+
+plot1b+plot2b + plot_layout(guides='collect') & theme(legend.position = 'top')
+
+```
+
+## test models for stability vs FunRao with random effects and autocorrelation
+#autocor needed with ar1
+```{r}
+m1=
+cbind.data.frame(
+comm.stab.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  pivot_longer(cols=c(2:11), values_to = 'CommStab'),
+FunRao.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>%  
+  pivot_longer(cols=c(1:10), values_to = 'FunRao', names_to = 'Code')) %>% 
+  
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+  lm(CommStab~FunRao,  data=.)
+
+summary(m1)
+acf(residuals(m1))
+
+
+
+m2=
+cbind.data.frame(
+comm.stab.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  pivot_longer(cols=c(2:11), values_to = 'CommStab'),
+FunRao.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>%  
+  pivot_longer(cols=c(1:10), values_to = 'FunRao', names_to = 'Code')) %>% 
+  
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+  lme(CommStab~FunRao, random= ~1|Code, data=.)
+
+summary(m2)
+acf(residuals(m2))
+
+
+m3=
+cbind.data.frame(
+comm.stab.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  pivot_longer(cols=c(2:11), values_to = 'CommStab'),
+FunRao.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>%  
+  pivot_longer(cols=c(1:10), values_to = 'FunRao', names_to = 'Code')) %>% 
+  
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+  lme(CommStab~FunRao, random= ~1|Code, cor=corAR1(0.6), data=.)
+
+summary(m3)
+
+anova(m2,m3)
+
+```
+
+# Test models for synchrony vs fun rao with random effect and autocorr
+*some trips in the ARcor formulation when groups are also present (sites), as the time variable is not in order*
+Fitting a maybe better ARcor function (including timewindow as time variable) produce identical fit
+```{r}
+
+m2b=
+cbind.data.frame(
+synch.loreau.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  pivot_longer(cols=c(2:11), values_to = 'CommSynch.Loreau'),
+FunRao.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>%  
+  pivot_longer(cols=c(1:10), values_to = 'FunRao', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+   left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+  lme(CommSynch.Loreau~FunRao, random= ~1|Code,  data=.)
+
+summary(m2b)
+acf(residuals(m2b))
+
+m3b=
+cbind.data.frame(
+synch.loreau.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  pivot_longer(cols=c(2:11), values_to = 'CommSynch.Loreau'),
+FunRao.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>%  
+  pivot_longer(cols=c(1:10), values_to = 'FunRao', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+   left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+  lme(CommSynch.Loreau~FunRao, random= ~1|Code, cor=corAR1(0.6), data=.)
+
+summary(m3b)
+anova(m2b, m3b)
+
+acf(residuals(m3b))
+
+
+m3c=
+cbind.data.frame(
+synch.loreau.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  pivot_longer(cols=c(2:11), values_to = 'CommSynch.Loreau'),
+FunRao.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>%  
+  pivot_longer(cols=c(1:10), values_to = 'FunRao', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+   
+  lme(CommSynch.Loreau~FunRao, random= ~1|Code, cor=corAR1(form=~as.numeric(as.factor(time.window))|Code), data=.)
+
+
+summary(m3c)
+acf(residuals(m3c))
+
+anova(m3b, m3c)
+
+```
+
+
+## Working on the functional deviation (null models for FDis)
+
+
+
+# function to shuffle names and provide a null FunRao value
+```{r}
+
+shuffle.names.rao=function(abb, trt){
+  rownames(trt)=sample(rownames(trt), replace = F)
+  SYNCSA::rao.diversity(abb, trt)$FunRao
+}
+
+# test funciton
+shuffle.names.rao(LB10.imp[,-c(1,2)], subs_trt_fuzzy)
+
+zio=subs_trt_fuzzy
+rownames(zio)=sample(rownames(zio), replace = F)
+
+rao.diversity(LB10.imp[,-c(1,2)],
+zio)$FunRao
+```
+
+# combine the observed FunRao with replicates of null rao
+```{r}
+obs.null.rao=
+  cbind(rao.diversity(LB10.imp[,-c(1,2)], subs_trt_fuzzy)$FunRao,
+        replicate(300, shuffle.names.rao(LB10.imp[,-c(1,2)], subs_trt_fuzzy)))
+```
+
+# extract the deviations Rao and SES rao
+```{r}
+Rao_deviations=cbind.data.frame(code_year=rownames(obs.null.rao),
+                                obs.Rao=obs.null.rao[,1],
+                                Rao_dev=(obs.null.rao[,1]-rowMeans(obs.null.rao[,-1])),
+                                SES.Rao=(obs.null.rao[,1]-rowMeans(obs.null.rao[,-1]) / apply(obs.null.rao[,-1],1, sd))
+)
+
+# add the Code info
+Rao_deviations$Code=rao.div$Code
+
+
+```
+
+```{r}
+library(zoo)
+library(tidyverse)
+```
+
+
+```{r}
+Rao_dev.mw=as.data.frame(matrix(nrow=length(time.window5), ncol=10))
+rownames(Rao_dev.mw)=time.window5
+colnames(Rao_dev.mw)=lb10.siteID
+
+for(s in 1: length(lb10.siteID)){
+  
+Rao_dev.mw[,s]=rollmean(Rao_deviations %>%  filter(Code==lb10.siteID[s]) %>% pull(Rao_dev), k=6, align = 'center')
+}
+```
+```{r fig.width=6}
+cbind.data.frame(
+synch.loreau.mw %>% pivot_longer(cols=c(2:11), values_to = 'CommSynch.Loreau'),
+Rao_dev.mw %>%  pivot_longer(cols=c(1:10), values_to = 'Rao_deviation', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+   ggplot()+aes(Rao_deviation, CommSynch.Loreau)+geom_point(aes(col=name))+geom_smooth(method='lm')+ylab('Community synchrony')+
+  theme(axis.title = element_text(size=12))+scale_color_discrete(name='Stream')+xlab('Functional deviation')+geom_smooth(aes(col=name), se=F, method='lm', size=0.2)
+```
+```{r}
+library(nlme)
+```
+
+
+```{r}
+m.dev=
+cbind.data.frame(
+synch.loreau.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  pivot_longer(cols=c(2:11), values_to = 'CommSynch'),
+Rao_dev.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>%  
+  pivot_longer(cols=c(1:10), values_to = 'Rao_deviation', names_to = 'Code')) %>% 
+  
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+  lme(CommSynch~Rao_deviation, random= ~1|Code, cor=corAR1(0.6), data=.)
+
+
+summary(m.dev)
+```
+
+
+
+
+
+
+
+
+
+
+
+
