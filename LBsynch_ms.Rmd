@@ -752,6 +752,8 @@ NAN2mean.seas=function(df){
 
 ######## *FILLING some NAs in seasonal data with respective column and season mean* ####
 # fill the seasonal chem data using the NAN2mean.seas function
+ This step fills the NAs for those parameters that are missing for the years when (some) data were collected.
+BUT Some sites were not visited at all for bunch of years, and no filling is attempted for these years.
 ```{r}
 LI1.chem.seas.fill=NAN2mean.seas(LI1.chem.seas)
   
@@ -831,6 +833,17 @@ LB_chem.seas.fill=rbind(LI1.chem.seas.fill, LI2.chem.seas.fill, LI3.chem.seas.fi
                         LI5.chem.seas.fill, LI6.chem.seas.fill, LI7.chem.seas.fill, LI8.chem.seas.fill,
                         CI1.chem.seas.fill, CI2.chem.seas.fill, CI3.chem.seas.fill, CI4.chem.seas.fill, CI5.chem.seas.fill, CI6.chem.seas.fill)
 ```
+
+# Export the elaborated hydro-chemistry data for subset of streams most complete
+```{r}
+write.csv(LB_chem.seas.fill, 'LB_chem.season.imputed.csv')
+```
+
+```{r}
+table(LB_chem.seas.fill$winter.year, LB_chem.seas.fill$Site)
+```
+
+
 # Exploring again outliers in the LB total chemistry
 ```{r}
 summary(LB_chem.seas.fill)
@@ -868,6 +881,14 @@ library(factoextra)
 ```{r}
 fviz_pca_var(PCA.chem, repel = T, col.var="contrib",  gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
 ```
+# Plot PCA hydrochem variables
+```{r}
+pdf('PCA_hydrochem.pdf', w=4.5, h=4.5)
+fviz_pca_var(PCA.chem, repel = T, col.var="contrib",  gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+dev.off()
+```
+
+
 
 ```{r}
 fviz_pca_ind(PCA.chem, habillage = LB_chem.seas.fill$Site, addEllipses = T, label='none')
@@ -892,26 +913,16 @@ PCA.chem.ax %>%
   slice(chull(Comp.1, Comp.2))
 ```
 
-# Plot All sites with Hull - very confusing
+# Plot All sites with Hull - for Winter
 ```{r}
 PCA.chem.ax %>% 
   mutate(year=as.numeric(year)) %>% 
-  #filter(Season=='Winter') %>% 
-  ggplot()+aes(Comp.1, Comp.2, col=Site)+geom_point(alpha=.2)+geom_polygon(data=hull_pca.chem, fill=NA)
-
-
-```
-
-# Plot the Chem PCA with sites centroids only
-```{r}
-PCA.chem.ax %>% 
-  #filter(Season=='Summer') %>% 
   filter(Season=='Winter') %>% 
-  select(c(1:6)) %>% 
-  group_by(Site) %>% 
-  mutate(centr.c1=mean(Comp.1), centr.c2=mean(Comp.2)) %>% 
-  ggplot()+aes(Comp.1, Comp.2)+geom_text(aes(centr.c1, centr.c2, label=Site))+theme_bw()
+  ggplot()+aes(Comp.1, Comp.2, col=Site)+geom_point(alpha=.2)+geom_polygon(data=hull_pca.chem %>% filter(Season=='Winter'), fill=NA)
+
+
 ```
+
 
 
 
@@ -1220,7 +1231,7 @@ Compl.comm.PC1$PC1.LI5[ c(24,26,32)] # these are winter months wiht NAs
 # fill
 Compl.comm.PC1$PC1.LI5[ c(24,26,32)]=rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.LI5) %>% colMeans(na.rm=T), 3)
 
-Compl.comm.PC1$PC1.LI5[ c(28)] # another winter nA
+Compl.comm.PC1$PC1.LI5[ c(28)] # another winter NA to fill
 Compl.comm.PC1$PC1.LI5[ c(28)] = Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.LI5) %>% colMeans(na.rm=T)
 ```
 
@@ -1336,7 +1347,7 @@ Common.PC1 %>%
   select(year, Season,PC1.LI1, PC1.LI4,PC1.LI5, PC1.LI6,  PC1.CI2,PC1.CI4)
 ```
 
-# filling some missin values with means
+# filling some missin values with means of column
 *summer of 1992 for LI1 and LI4 streams* is now filled
 ```{r}
 which(is.na(Compl.comm.PC1$PC1.LI1)) # these is a summer value
@@ -1929,14 +1940,12 @@ PC1.w.synch_mw$wNAOwindow=wNAO_window$NAOwindow[match(rownames(PC1.w.synch_mw), 
 # Plot mw synch for PC1 winter vs NAOmw (not great synch effect of NAO on PC1 chemistry)
 # *Plot Fig. S1* 
 ```{r fig.width=6}
-PC1.w.synch_mw%>% 
-  ggplot()+aes(wNAOwindow, PC1_winter.synch.mw, label=row.names(abund.synch_mw))+geom_point(size=2)+geom_text_repel(size=2.5)+
-  geom_smooth( col='grey50', alpha=.3, method='lm', se=F, linetype='dashed')+ylab('PC1 winter - synchrony mw')+ xlab('Winter NAO window')
 
 
 PC1.w.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
   ggplot()+aes(wNAOwindow, PC1_winter.synch.mw, label=row.names(abund.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),]))+geom_point(size=2)+geom_text_repel(size=2.5)+
   geom_smooth( col='grey50', alpha=.3, method='lm', se=F, linetype='dashed')+ylab('PC1 winter - synchrony mw')+ xlab('Winter NAO window')
+
 
 ```
 ```{r}
@@ -3907,6 +3916,9 @@ prep.fuzzy.var(Spp_subs_trt, block)
 
 subs_trt_fuzzy
 ```
+```{r}
+write.csv(subs_trt_fuzzy, 'subs_trt_fuzzy.csv')
+```
 
 
 # Work on functional redundancy via SYNCSA functions
@@ -4301,6 +4313,10 @@ subs_trt_fuzzy2=
 prep.fuzzy.var(Spp_subs_trt2, block2)
 ```
 
+```{r}
+write.csv(subs_trt_fuzzy2, 'subs_trt_fuzzy2.csv')
+```
+
 
 # Update rao.diversity and redundancy
 ```{r}
@@ -4312,6 +4328,9 @@ library(SYNCSA)
 rao.div2=
 rao.diversity(LB10.imp[,-c(1,2)], subs_trt_fuzzy2)
 ```
+
+
+
 
 # get the update rao diversity
 ```{r}
