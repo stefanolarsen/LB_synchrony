@@ -1589,7 +1589,7 @@ ts.NAOs=cleandat(ts.NAOs, timesNAOs, clev=1)
 
 #Wavelet NAO seasonal- WINTER
 # Plot of NAO winter wavelet decomposition
-# Plot *part of FIG.1*
+# Plot *part of FIG.1, upper panel*
 ```{r}
 wt.NAOw=wt(ts.NAOw$cdat, timesNAOw)
 plotmag(wt.NAOw, title='Winter NAO')
@@ -1669,7 +1669,7 @@ plotmag(wt.LI1.flow.w, title='LI1 winter runoff')
 ```
 
 # Save plot for LI1 flow
-# Plot *part of FIG.1*
+# Plot *part of FIG.1, lower panel*
 ```{r}
 pdf('wt_LI1flow.pdf', w=6, h=4)
 plotmag(wt.LI1.flow.w, title='LI1 winter runoff')
@@ -1794,7 +1794,7 @@ times=time.lb10, clev=4)$cdat, time.lb10), title='WT monthly wetdays LI8'
 ```
 
 # Plot of wavelet daily rain LI8
-# Plot *part of FIG.1*
+# Plot *part of FIG.1, central panel*
 ```{r}
 pdf('wtLI8.rain.pdf', w=6, h=4)
 plotmag(
@@ -1811,7 +1811,7 @@ times=time.lb10, clev=4)$cdat, time.lb10), title='Mean daily winter rain LI8'
 ```
 
 
-
+# *Figure 1 completed was composed with inkscape*
 
 
 
@@ -4040,7 +4040,7 @@ dev.off()
 
 
 # model for functional diversity vs synch & stability
-Model that accounts for stream as random effect temporal autocorr
+Models that account for stream as random effect temporal autocorr
 ```{r}
 m.synch.rao=
 cbind.data.frame(
@@ -4075,6 +4075,144 @@ FunRao2.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>%
 summary(m.stab.rao)
 
 ```
+
+
+
+## *Working on the functional deviation (null models for FDis)*
+
+
+# function to shuffle names and provide a null FunRao value
+```{r}
+
+shuffle.names.rao=function(abb, trt){
+  rownames(trt)=sample(rownames(trt), replace = F)
+  SYNCSA::rao.diversity(abb, trt)$FunRao
+}
+
+# test funciton
+shuffle.names.rao(LB10.imp[,-c(1,2)], subs_trt_fuzzy)
+
+zio=subs_trt_fuzzy
+rownames(zio)=sample(rownames(zio), replace = F)
+
+rao.diversity(LB10.imp[,-c(1,2)],
+zio)$FunRao
+```
+
+# combine the observed FunRao with replicates of null rao
+```{r}
+obs.null.rao2=
+  cbind(rao.diversity(LB10.imp[,-c(1,2)], subs_trt_fuzzy2)$FunRao,
+        replicate(300, shuffle.names.rao(LB10.imp[,-c(1,2)], subs_trt_fuzzy2)))
+
+
+obs.null.rao=
+  cbind(rao.diversity(LB10.imp[,-c(1,2)], subs_trt_fuzzy)$FunRao,
+        replicate(300, shuffle.names.rao(LB10.imp[,-c(1,2)], subs_trt_fuzzy)))
+
+```
+
+# extract the deviations Rao and SES rao
+```{r}
+
+Rao_deviations=cbind.data.frame(code_year=rownames(obs.null.rao),
+                                obs.Rao=obs.null.rao[,1],
+                                Rao_dev=(obs.null.rao[,1]-rowMeans(obs.null.rao[,-1])),
+                                SES.Rao=(obs.null.rao[,1]-rowMeans(obs.null.rao[,-1]) / apply(obs.null.rao[,-1],1, sd))
+
+
+
+Rao_deviations2=cbind.data.frame(code_year=rownames(obs.null.rao2),
+                                obs.Rao=obs.null.rao2[,1],
+                                Rao_dev=(obs.null.rao2[,1]-rowMeans(obs.null.rao2[,-1])),
+                                SES.Rao=(obs.null.rao2[,1]-rowMeans(obs.null.rao2[,-1]) / apply(obs.null.rao2[,-1],1, sd))
+)
+
+# add the Code info
+Rao_deviations2$Code=rao.div$Code
+
+
+```
+
+```{r}
+library(zoo)
+library(tidyverse)
+```
+
+# calculate Rao deviation mowing window
+```{r}
+Rao_dev.mw=as.data.frame(matrix(nrow=length(time.window5), ncol=10))
+rownames(Rao_dev.mw)=time.window5
+colnames(Rao_dev.mw)=lb10.siteID
+
+for(s in 1: length(lb10.siteID)){
+  
+Rao_dev.mw[,s]=rollmean(Rao_deviations %>%  filter(Code==lb10.siteID[s]) %>% pull(Rao_dev), k=6, align = 'center')
+}
+```
+
+# Plot Fig.S3 - functional deviation
+```{r fig.width=6}
+cbind.data.frame(
+synch.loreau.mw %>% pivot_longer(cols=c(2:11), values_to = 'CommSynch.Loreau'),
+Rao_dev.mw %>%  pivot_longer(cols=c(1:10), values_to = 'Rao_deviation', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+  filter(time.window %in% time.window5_skip) %>% 
+   ggplot()+aes(Rao_deviation, CommSynch.Loreau)+geom_point(aes(col=name))+geom_smooth(method='lm', linetype='dashed')+ylab('Community synchrony')+
+  theme(axis.title = element_text(size=12))+scale_color_discrete(name='Stream')+xlab('Functional deviation')+geom_smooth(aes(col=name), se=F, method='lm', size=0.2)+scale_color_brewer(name='Stream',palette='Paired')
+```
+
+#*plot Fig S3*
+```{r}
+pdf('Fig.S3_func_deviation.pdf', w=5,h=4)
+cbind.data.frame(
+synch.loreau.mw %>% pivot_longer(cols=c(2:11), values_to = 'CommSynch.Loreau'),
+Rao_dev.mw %>%  pivot_longer(cols=c(1:10), values_to = 'Rao_deviation', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+  filter(time.window %in% time.window5_skip) %>% 
+   ggplot()+aes(Rao_deviation, CommSynch.Loreau)+geom_point(aes(col=name))+geom_smooth(method='lm', linetype='dashed')+ylab('Community synchrony')+
+  theme(axis.title = element_text(size=12))+scale_color_discrete(name='Stream')+xlab('Functional deviation')+geom_smooth(aes(col=name), se=F, method='lm', size=0.2)+scale_color_brewer(name='Stream',palette='Paired')
+
+dev.off()
+```
+
+
+
+```{r}
+library(nlme)
+```
+
+*to update*
+```{r}
+m.dev=
+cbind.data.frame(
+synch.loreau.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  pivot_longer(cols=c(2:11), values_to = 'CommSynch'),
+Rao_dev.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>%  
+  pivot_longer(cols=c(1:10), values_to = 'Rao_deviation', names_to = 'Code')) %>% 
+  
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+  lme(CommSynch~Rao_deviation, random= ~1|Code, cor=corAR1(0.6), data=.)
+
+
+summary(m.dev)
+
+m.dev2=
+cbind.data.frame(
+synch.loreau.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  pivot_longer(cols=c(2:11), values_to = 'CommSynch'),
+Rao_dev2.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>%  
+  pivot_longer(cols=c(1:10), values_to = 'Rao_deviation', names_to = 'Code')) %>% 
+  
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+  lme(CommSynch~Rao_deviation, random= ~1|Code, cor=corAR1(0.6), data=.)
+
+summary(m.dev2)
+```
+
+
+
+
 
 
 ##################################
@@ -4173,11 +4311,70 @@ FunRao2.mw.NA %>%  pivot_longer(cols=c(1:10), values_to = 'FunRao2', names_to = 
   geom_smooth(aes(col=name), se=F, method='lm', size=0.2)
 ```
 
+# Plot Fig 6 based on FDis keeping NAs in trait info.
+*not in paper*
 ```{r}
 library(patchwork)
 
 plot_sync_rao.NA+plot_stab_rao.NA + plot_layout(guides='collect') & theme(legend.position = 'top')
 ```
+
+
+#########################
+# Null model, *Rao deviation with FDis keeping NAs*
+# combine the observed FunRao with replicates of null rao
+```{r}
+obs.null.rao.NA=
+  cbind(rao.diversity(LB10.imp[,-c(1,2)], Spp_subs_trt2)$FunRao,
+        replicate(300, shuffle.names.rao(LB10.imp[,-c(1,2)], Spp_subs_trt2)))
+
+
+```
+
+# extract the deviations Rao and SES rao
+```{r}
+Rao_deviations.NA=cbind.data.frame(code_year=rownames(obs.null.rao.NA),
+                                obs.Rao=obs.null.rao.NA[,1],
+                                Rao_dev=(obs.null.rao.NA[,1]-rowMeans(obs.null.rao.NA[,-1])),
+                                SES.Rao=(obs.null.rao.NA[,1]-rowMeans(obs.null.rao.NA[,-1]) / apply(obs.null.rao.NA[,-1],1, sd))
+)
+
+# add the Code info
+Rao_deviations.NA$Code=rao.div$Code
+
+
+```
+
+```{r}
+library(zoo)
+library(tidyverse)
+```
+
+# Rao deviation moving window
+```{r}
+Rao_dev.NA.mw=as.data.frame(matrix(nrow=length(time.window5), ncol=10))
+rownames(Rao_dev.NA.mw)=time.window5
+colnames(Rao_dev.NA.mw)=lb10.siteID
+
+for(s in 1: length(lb10.siteID)){
+  
+Rao_dev.NA.mw[,s]=rollmean(Rao_deviations.NA %>%  filter(Code==lb10.siteID[s]) %>% pull(Rao_dev), k=6, align = 'center')
+}
+```
+
+```{r}
+cbind.data.frame(
+synch.loreau.mw %>% pivot_longer(cols=c(2:11), values_to = 'CommSynch.Loreau'),
+Rao_dev.NA.mw %>%  pivot_longer(cols=c(1:10), values_to = 'Rao_deviation', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+  filter(time.window %in% time.window5_skip) %>% 
+   ggplot()+aes(Rao_deviation, CommSynch.Loreau)+geom_point(aes(col=name))+geom_smooth(method='lm')+ylab('Community synchrony')+
+  theme(axis.title = element_text(size=12))+scale_color_discrete(name='Stream')+xlab('Functional deviation')+geom_smooth(aes(col=name), se=F, method='lm', size=0.2)+scale_color_brewer(name='Stream',palette='Paired')
+```
+
+
+
+
 
 
 
@@ -4331,7 +4528,7 @@ plot1b.skip+plot2b.skip + plot_layout(guides='collect') & theme(legend.position 
 
 ```
 
-# Plot Fig.6
+# Plot Fig.6 (not in paper)
 ```{r}
 #pdf('Fig.6_FD_synchrony.pdf', w=6, h=4.5)
 #plot1b.skip+plot2b.skip + plot_layout(guides='collect') & theme(legend.position = 'top')
@@ -4441,27 +4638,11 @@ anova(m3b, m3c)
 
 ```
 
-#*test of interaction FunRaoX NAO with respect to synchrony*
-*(no need to keep if for ms)*
-```{r}
-test=
-cbind.data.frame(
-synch.loreau.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
-  pivot_longer(cols=c(2:11), values_to = 'CommSynch.Loreau'),
-FunRao.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>%  
-  pivot_longer(cols=c(1:10), values_to = 'FunRao', names_to = 'Code')) %>% 
-  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
-   left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
-  lme(CommSynch.Loreau~FunRao*NAOwindow.x, random= ~1|Code, cor=corAR1(0.6), data=.)
-
-summary(test)
-```
 
 
 
 
 ## *Working on the functional deviation (null models for FDis)*
-
 
 
 # function to shuffle names and provide a null FunRao value
