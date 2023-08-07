@@ -305,7 +305,7 @@ CI6.chem$Season[which(CI6.chem$month %in% c('April', 'May', 'June', 'July', 'Aug
 
 # Now check outlier
 
-## crazy outliers in some parameters
+## big outliers in some parameters
 
 ```{r}
 summary(LI1.chem)
@@ -452,7 +452,7 @@ LI1.chem %>%
 
 
 ######################################
-# tests to *assign winter year label* to months from following year of sampling
+# tests to *assign winter year label* to months for following year of sampling
 ```{r}
 LI1.chem$year=as.numeric(LI1.chem$year)
 ```
@@ -1471,6 +1471,7 @@ Compl.comm.PC1 %>% filter(Season=='Winter') %>% filter(year %in% c(1985:2018)) %
 
 #############
 # *the NAO*
+##############
 
 ```{r}
 library(wsyn)
@@ -1762,17 +1763,10 @@ plot_monthlyrain_nao=
 
 
 # *Wavelet of monthly mean rain*
-#The phasor does not make sense as there are same rain series for many streams
+
 # Plot of monthly rain LI8 wt
 ```{r}
-plotmag(
-    wpmf(
-cleandat(
-LB10_rain_ymeans.w %>% 
-  as.data.frame() %>% 
-  select(c(Site, Ante, m.mean)) %>% 
-  pivot_wider(names_from = Ante, values_from = m.mean) %>% select(-'Site') %>% as.matrix(),
-  times=time.lb10, clev=4)$cdat, times=time.lb10, sigmethod = 'quick'), title='Wpmf mean.monthly')
+
 
 plotmag(
 wt(
@@ -1887,7 +1881,7 @@ plot_monthlyrain_nao +
 plot_winterT_nao   + plot_layout(guide='collect')
 ```
 
-
+## Plot Figure 2 (rain and T vs NAO)
 ```{r }
 pdf('Fig2_Temp_Rain_NAO.pdf', w=7,h=4)
 plot_monthlyrain_nao +
@@ -3859,9 +3853,10 @@ summary(mod.phi_S2C_R)
 ```
 
 
+############################################################################
+### Trati analyses for FDis calculation. Different options are presented.
 
-### include the functional trait part
-*trait analyses*
+
 
 
 
@@ -3907,6 +3902,290 @@ names(trt_names)=colnames(Spp_subs_trt)
 
 
 
+######## ################################
+## Version of functional diversity based on subset of (most complete) trait info
+########################################
+
+# check the completeness of trait info
+```{r}
+str(trt_names)
+attributes(trt_names)
+
+trt_names[c(31:40)] ## the drought & rsistence (6,7)
+trt_names[c(45:49)] # dissemination & disp capacity (9,10)
+
+trt_names[-c(31:40, 45:49)]
+
+```
+
+# update block
+```{r}
+block
+
+block2=block[-c(6,7,9,10)]
+```
+# update the original trait info (subset)
+```{r}
+Spp_subs_trt
+
+Spp_subs_trt2=
+  Spp_subs_trt[,-c(31:40, 45:49)]
+
+```
+
+# update the fuzzy coded trait
+```{r}
+subs_trt_fuzzy2=
+prep.fuzzy.var(Spp_subs_trt2, block2)
+```
+
+# export the subset of trait, fuzzy coded now
+```{r}
+write.csv(subs_trt_fuzzy2, 'subs_trt_fuzzy2.csv')
+```
+
+
+# Update rao.diversity and redundancy
+```{r}
+library(SYNCSA)
+```
+
+*the simpson rao is the null value based on random dissimilarities or where each spp is different in traits*
+```{r}
+rao.div2=
+rao.diversity(LB10.imp[,-c(1,2)], subs_trt_fuzzy2)
+```
+
+
+
+# get the update rao diversity
+```{r}
+library(reshape2)
+
+rao.div2=
+cbind.data.frame(colsplit(rownames(as.data.frame(rao.div2$FunRao)), '_', names=c('Code', 'year')), rao.div2$FunRao, rao.div2$FunRedundancy)
+names(rao.div2)[3]='FunRao'
+names(rao.div2)[4]='FunRedundancy'
+
+```
+
+
+# the update moving window of functional diversity
+```{r}
+FunRao2.mw=as.data.frame(matrix(nrow=length(time.window5), ncol=10))
+rownames(FunRao2.mw)=time.window5
+colnames(FunRao2.mw)=lb10.siteID
+
+for(s in 1: length(lb10.siteID)){
+  
+FunRao2.mw[,s]=rollmean(rao.div2 %>%  filter(Code==lb10.siteID[s]) %>% pull(FunRao), k=6, align = 'center')
+}
+
+
+# redundancy not used
+FunRedun2.mw=as.data.frame(matrix(nrow=length(time.window5), ncol=10))
+rownames(FunRedun2.mw)=time.window5
+colnames(FunRedun2.mw)=lb10.siteID
+
+for(s in 1: length(lb10.siteID)){
+  
+FunRedun.mw[,s]=rollmean(rao.div2 %>%  filter(Code==lb10.siteID[s]) %>% pull(FunRedundancy), k=6, align = 'center')
+}
+
+
+```
+
+# the update plots of functinoal diversity
+```{r}
+
+plot_sync_rao=
+cbind.data.frame(
+synch.loreau.mw %>% pivot_longer(cols=c(2:11), values_to = 'CommSynch.Loreau'),
+FunRao2.mw %>%  pivot_longer(cols=c(1:10), values_to = 'FunRao2', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+  filter(time.window %in% time.window5_skip ) %>% 
+   ggplot()+aes(FunRao2, sqrt(CommSynch.Loreau))+geom_point(aes(col=name))+geom_smooth(method='lm')+ylab('Community synchrony')+
+  theme(axis.title = element_text(size=12))+scale_color_discrete(name='Stream')+xlab('Functional diversity')+geom_smooth(aes(col=name), se=F, method='lm', size=0.2)
+
+plot_stab_rao=
+cbind.data.frame(
+comm.stab.mw %>% pivot_longer(cols=c(2:11), values_to = 'CommStab'),
+FunRao2.mw %>%  pivot_longer(cols=c(1:10), values_to = 'FunRao2', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+  filter(time.window %in% time.window5_skip ) %>% 
+   ggplot()+aes(FunRao2, 1/CommStab)+geom_point(aes(col=name))+geom_smooth(method='lm', linetype='dashed')+ylab('Community variability')+
+   theme(axis.title = element_text(size=12))+scale_color_discrete(name='Stream')+xlab('Functional diversity')+
+  geom_smooth(aes(col=name), se=F, method='lm', size=0.2)
+
+
+```
+
+
+#
+```{r fig.width=7, fig.height=4.5}
+library(patchwork)
+
+plot_sync_rao+plot_stab_rao + plot_layout(guides='collect') & theme(legend.position = 'top')
+
+```
+
+
+# *Plot Fig.6* as in the paper
+```{r}
+pdf('Fig.6_FD_synchrony.pdf', w=6, h=4.5)
+plot_sync_rao+plot_stab_rao + plot_layout(guides='collect') & theme(legend.position = 'top')
+
+dev.off()
+```
+
+
+# model for functional diversity vs synch & stability
+Model that accounts for stream as random effect temporal autocorr
+```{r}
+m.synch.rao=
+cbind.data.frame(
+synch.loreau.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  pivot_longer(cols=c(2:11), values_to = 'CommSynch.Loreau'),
+FunRao2.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>%  
+  pivot_longer(cols=c(1:10), values_to = 'FunRao', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+   
+  lme(CommSynch.Loreau~FunRao, random= ~1|Code, cor=corAR1(form=~as.numeric(as.factor(time.window))|Code), data=.)
+
+
+summary(m.synch.rao)
+
+
+
+
+
+```
+
+```{r}
+m.stab.rao=
+cbind.data.frame(
+comm.stab.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  pivot_longer(cols=c(2:11), values_to = 'CommStab'),
+FunRao2.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>%  
+  pivot_longer(cols=c(1:10), values_to = 'FunRao', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+   
+  lme(CommStab~FunRao, random= ~1|Code, cor=corAR1(form=~as.numeric(as.factor(time.window))|Code), data=.)
+
+summary(m.stab.rao)
+
+```
+
+
+##################################
+Alternative FDis *not in the paper*
+Claculate FDis exluding taxa with no trait info. Rather than assigning them with mean value for each trait category (as from
+fuzzy coded approach prep.fuzzy)
+########################
+
+#The rao with NAs for missing trait info
+```{r}
+Rao.div2_NAs=
+rao.diversity(LB10.imp[,-c(1,2)], Spp_subs_trt2)
+```
+
+# compare it to the one used before (mean value of trt category assigned to taxa  w missing trait info)
+```{r}
+plot(rao.div2$FunRao, Rao.div2_NAs$FunRao)
+abline(a=0, b=1)
+```
+
+```{r}
+#library(reshape2)
+
+Rao.div2_NAs=
+cbind.data.frame(colsplit(rownames(as.data.frame(Rao.div2_NAs$FunRao)), '_', names=c('Code', 'year')), Rao.div2_NAs$FunRao, Rao.div2_NAs$FunRedundancy)
+names(Rao.div2_NAs)[3]='FunRao'
+names(Rao.div2_NAs)[4]='FunRedundancy'
+
+```
+
+
+
+
+
+# Calculate mw for Rao div with NAs for missing taxa info
+```{r}
+FunRao2.mw.NA=as.data.frame(matrix(nrow=length(time.window5), ncol=10))
+rownames(FunRao2.mw.NA)=time.window5
+colnames(FunRao2.mw.NA)=lb10.siteID
+
+for(s in 1: length(lb10.siteID)){
+  
+FunRao2.mw.NA[,s]=rollmean(Rao.div2_NAs %>%  filter(Code==lb10.siteID[s]) %>% pull(FunRao), k=6, align = 'center')
+}
+
+
+
+FunRedun2.mw.NA=as.data.frame(matrix(nrow=length(time.window5), ncol=10))
+rownames(FunRedun2.mw.NA)=time.window5
+colnames(FunRedun2.mw.NA)=lb10.siteID
+
+for(s in 1: length(lb10.siteID)){
+  
+FunRedun2.mw.NA[,s]=rollmean(Rao.div2_NAs %>%  filter(Code==lb10.siteID[s]) %>% pull(FunRedundancy), k=6, align = 'center')
+}
+
+
+```
+
+
+# The model for Synchrony vs Rao, keeping NAs for missing traits
+*qualitative similar results as for FDis using all species*
+```{r}
+m.synch.rao.NAs=
+cbind.data.frame(
+synch.loreau.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  pivot_longer(cols=c(2:11), values_to = 'CommSynch.Loreau'),
+FunRao2.mw.NA [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>%  
+  pivot_longer(cols=c(1:10), values_to = 'FunRao', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+   
+  lme(CommSynch.Loreau~FunRao, random= ~1|Code, cor=corAR1(form=~as.numeric(as.factor(time.window))|Code), data=.)
+
+
+summary(m.synch.rao.NAs)
+```
+
+
+
+```{r}
+plot_sync_rao.NA=
+cbind.data.frame(
+synch.loreau.mw %>% pivot_longer(cols=c(2:11), values_to = 'CommSynch.Loreau'),
+FunRao2.mw.NA %>%  pivot_longer(cols=c(1:10), values_to = 'FunRao2', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+   ggplot()+aes(FunRao2, sqrt(CommSynch.Loreau))+geom_point(aes(col=name))+geom_smooth(method='lm')+ylab('Community synchrony')+
+  theme(axis.title = element_text(size=12))+scale_color_discrete(name='Stream')+xlab('Functional diversity')+geom_smooth(aes(col=name), se=F, method='lm', size=0.2)
+
+plot_stab_rao.NA=
+cbind.data.frame(
+comm.stab.mw %>% pivot_longer(cols=c(2:11), values_to = 'CommStab'),
+FunRao2.mw.NA %>%  pivot_longer(cols=c(1:10), values_to = 'FunRao2', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+   ggplot()+aes(FunRao2, 1/CommStab)+geom_point(aes(col=name))+geom_smooth(method='lm', linetype='dashed')+ylab('Community variability')+
+   theme(axis.title = element_text(size=12))+scale_color_discrete(name='Stream')+xlab('Functional diversity')+
+  geom_smooth(aes(col=name), se=F, method='lm', size=0.2)
+```
+
+```{r}
+library(patchwork)
+
+plot_sync_rao.NA+plot_stab_rao.NA + plot_layout(guides='collect') & theme(legend.position = 'top')
+```
+
+
+
+
+###########################################################################
+#### Calculation of FDis using additional traits, but many missing taxa
+*not included in the paper*
+
 # Fuzzy code the traits to convert [0-1] and the NAs to mean of trait category *needed for functcomp*
 *this converts NAs (missing info) for spp into the mean od that trait over all spp*
 The infuence of spp with NAs on the final functional diversity is unclear in this case
@@ -3942,6 +4221,17 @@ names(rao.div)[4]='FunRedundancy'
 
 ```
 
+
+# compare the subsetted and alternative (many trt but missing info on taxa) functional diversity
+
+```{r}
+rao.div2
+rao.div
+
+plot(rao.div2$FunRao, rao.div$FunRao)
+abline(a=0, b=1)
+
+```
 
 
 # Calculate moving window of site FunRao and Fun Redun
@@ -4041,10 +4331,10 @@ plot1b.skip+plot2b.skip + plot_layout(guides='collect') & theme(legend.position 
 
 ```
 
-# *Plot Fig.6*
+# Plot Fig.6
 ```{r}
-pdf('Fig.6_FD_synchrony.pdf', w=6, h=4.5)
-plot1b.skip+plot2b.skip + plot_layout(guides='collect') & theme(legend.position = 'top')
+#pdf('Fig.6_FD_synchrony.pdf', w=6, h=4.5)
+#plot1b.skip+plot2b.skip + plot_layout(guides='collect') & theme(legend.position = 'top')
 
 dev.off()
 ```
@@ -4329,7 +4619,16 @@ rao.div2=
 rao.diversity(LB10.imp[,-c(1,2)], subs_trt_fuzzy2)
 ```
 
+```{r}
+Rao.div2_NAs=
+rao.diversity(LB10.imp[,-c(1,2)], Spp_subs_trt2)
+```
 
+
+```{r}
+plot(rao.div2$FunRao, Rao.div2_NAs$FunRao)
+abline(a=0, b=1)
+```
 
 
 # get the update rao diversity
