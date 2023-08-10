@@ -1,0 +1,2003 @@
+---
+title: "Hydrochem.Rmd"
+author: "Stefano Larsen"
+date: "2023-08-10"
+output: html_document
+---
+
+########################
+### Code for importing, elaborating and analysing hydro and climate data associated with the GCB manusctipt#
+#######################
+
+```{r}
+
+install.packages('ggrepel')
+library(readxl)
+library(tidyverse)
+library(reshape2)
+library(ggrepel)
+library(zoo)
+library(vegan)
+library(codyn)
+library(iCAMP)
+library(data.table)
+install.packages('gdata')
+library(gdata)
+library(RColorBrewer)
+```
+
+
+
+```{r}
+theme_set(theme_bw())
+```
+
+
+
+# Import the chemistry data for each stream, *from file*.
+# Hydrochemical data will be manupulated, imputed and further analyses via PCA. 
+# Deposited hydrochemical data include the subsetted and inputed data tables
+
+##LI.chem
+```{r}
+LI1.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "LI1")
+
+LI1.chem$Date=as.Date(LI1.chem$Date, format="%Y-%m-%d")
+
+LI1.chem$month=months(LI1.chem$Date)
+LI1.chem$year=format(LI1.chem$Date, '%Y')
+#add season
+LI1.chem$Season=NA
+LI1.chem$Season[which(LI1.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+LI1.chem$Season[which(LI1.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+
+```
+
+##LI2
+```{r}
+LI2.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "LI2", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+LI2.chem$month=months(LI2.chem$Date)
+LI2.chem$year=format(LI2.chem$Date, '%Y')
+#add season
+LI2.chem$Season=NA
+LI2.chem$Season[which(LI2.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+LI2.chem$Season[which(LI2.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+##LI3
+```{r}
+LI3.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "LI3", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+LI3.chem$month=months(LI3.chem$Date)
+LI3.chem$year=format(LI3.chem$Date, '%Y')
+
+#add season
+LI3.chem$Season=NA
+LI3.chem$Season[which(LI3.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+LI3.chem$Season[which(LI3.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+
+```
+
+##LI4
+```{r}
+LI4.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "LI4", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+LI4.chem$month=months(LI4.chem$Date)
+LI4.chem$year=format(LI4.chem$Date, '%Y')
+
+#add season
+LI4.chem$Season=NA
+LI4.chem$Season[which(LI4.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+LI4.chem$Season[which(LI4.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+
+```
+
+##LI5
+```{r}
+LI5.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "LI5", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+LI5.chem$month=months(LI5.chem$Date)
+LI5.chem$year=format(LI5.chem$Date, '%Y')
+
+#add season
+LI5.chem$Season=NA
+LI5.chem$Season[which(LI5.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+LI5.chem$Season[which(LI5.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+
+##LI6
+```{r}
+LI6.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "LI6", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+LI6.chem$month=months(LI6.chem$Date)
+LI6.chem$year=format(LI6.chem$Date, '%Y')
+
+#add season
+LI6.chem$Season=NA
+LI6.chem$Season[which(LI6.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+LI6.chem$Season[which(LI6.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+
+##LI7
+```{r}
+LI7.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "LI7", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+LI7.chem$month=months(LI7.chem$Date)
+LI7.chem$year=format(LI7.chem$Date, '%Y')
+
+#add season
+LI7.chem$Season=NA
+LI7.chem$Season[which(LI7.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+LI7.chem$Season[which(LI7.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+
+##LI8
+```{r}
+LI8.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "LI8", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+LI8.chem$month=months(LI8.chem$Date)
+LI8.chem$year=format(LI8.chem$Date, '%Y')
+
+#add season
+LI8.chem$Season=NA
+LI8.chem$Season[which(LI8.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+LI8.chem$Season[which(LI8.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+##CI1
+```{r}
+CI1.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "CI1", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+CI1.chem$month=months(CI1.chem$Date)
+CI1.chem$year=format(CI1.chem$Date, '%Y')
+
+#add season
+CI1.chem$Season=NA
+CI1.chem$Season[which(CI1.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+CI1.chem$Season[which(CI1.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+##CI2
+```{r}
+CI2.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "CI2", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+CI2.chem$month=months(CI2.chem$Date)
+CI2.chem$year=format(CI2.chem$Date, '%Y')
+
+#add season
+CI2.chem$Season=NA
+CI2.chem$Season[which(CI2.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+CI2.chem$Season[which(CI2.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+
+##CI3
+```{r}
+CI3.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "CI3", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+CI3.chem$month=months(CI3.chem$Date)
+CI3.chem$year=format(CI3.chem$Date, '%Y')
+
+#add season
+CI3.chem$Season=NA
+CI3.chem$Season[which(CI3.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+CI3.chem$Season[which(CI3.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+##CI4
+```{r}
+CI4.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "CI4", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+CI4.chem$month=months(CI4.chem$Date)
+CI4.chem$year=format(CI4.chem$Date, '%Y')
+
+#add season
+CI4.chem$Season=NA
+CI4.chem$Season[which(CI4.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+CI4.chem$Season[which(CI4.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+##CI5
+```{r}
+CI5.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "CI5X", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+CI5.chem$month=months(CI5.chem$Date)
+CI5.chem$year=format(CI5.chem$Date, '%Y')
+
+#add season
+CI5.chem$Season=NA
+CI5.chem$Season[which(CI5.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+CI5.chem$Season[which(CI5.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+##CI6
+```{r}
+CI6.chem=read_excel("LB_chemistry_clean_reduce.xlsx", 
+    sheet = "CI6", col_types = c("text", 
+        "date", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric", "numeric", 
+        "numeric", "numeric"))
+
+CI6.chem$month=months(CI6.chem$Date)
+CI6.chem$year=format(CI6.chem$Date, '%Y')
+
+#add season
+CI6.chem$Season=NA
+CI6.chem$Season[which(CI6.chem$month %in% c('October', 'November', 'December', 'January', 'February', 'March'))]='Winter'
+CI6.chem$Season[which(CI6.chem$month %in% c('April', 'May', 'June', 'July', 'August', 'September'))]='Summer'
+```
+
+
+
+# Now check outlier
+
+## big outliers in some parameters
+
+```{r}
+summary(LI1.chem)
+```
+
+# Function to covert max values into NA (remove max values from a vector)
+```{r}
+max2na=function(x){
+  x[which.max(x)]=NA
+  return(x)
+}
+
+#tests
+test=c(1,2,3,4,5,10)
+which.max(test)
+test[which.max(test)]=NA
+test=max2na(test)
+
+
+which.max(LI1.chem$Mn_Filtered)
+```
+
+# transform chemistry dfs for each site, removing the max values for each variable.
+```{r}
+LI1.chem=cbind(
+  LI1.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(LI1.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+
+```{r}
+LI2.chem=cbind(
+  LI2.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(LI2.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+```{r}
+LI3.chem=cbind(
+  LI3.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(LI3.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+```{r}
+LI4.chem=cbind(
+  LI4.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(LI4.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+
+```{r}
+LI5.chem=cbind(
+  LI5.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(LI5.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+
+```{r}
+LI6.chem=cbind(
+  LI6.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(LI6.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+
+```{r}
+LI7.chem=cbind(
+  LI7.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(LI7.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+```{r}
+LI8.chem=cbind(
+  LI8.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(LI8.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+```{r}
+CI1.chem=cbind(
+  CI1.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(CI1.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+```{r}
+CI2.chem=cbind(
+  CI2.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(CI2.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+```{r}
+CI3.chem=cbind(
+  CI3.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(CI3.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+```{r}
+CI4.chem=cbind(
+  CI4.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(CI4.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+```{r}
+CI5.chem=cbind(
+  CI5.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(CI5.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+```{r}
+CI6.chem=cbind(
+  CI6.chem[,c(1,2,16,17,18)],# re attach the charachter variables 
+  apply(CI6.chem[,c(3:15)],2, max2na)# remove the max values
+)
+```
+
+
+```{r}
+summary(LI4.chem)
+```
+
+
+# Visualize some boxplot for examination
+```{r}
+LI1.chem %>%
+  select(-c(Site, Date, year, Season, month)) %>% 
+  gather() %>% 
+  ggplot()+aes(x=key, y=value)+geom_boxplot()+facet_wrap(~key, scale='free')
+```
+
+
+
+
+######################################
+# tests to *assign winter year label* to months for following year of sampling
+```{r}
+LI1.chem$year=as.numeric(LI1.chem$year)
+```
+
+## *winter year* : months of oct, nov, dec are considered winter from the sampling occurring the following year (April).
+Will use this winter year label to aggregate by year and season. 
+
+```{r}
+LI1.chem$winter.year <- ifelse(LI1.chem$month %in% c('January','February','March'), LI1.chem$year, ifelse(LI1.chem$month %in% c('October', 'November','December'), LI1.chem$year+1, LI1.chem$year))
+```
+
+```{r}
+LI2.chem$year=as.numeric(LI2.chem$year)
+LI2.chem$winter.year <- ifelse(LI2.chem$month %in% c('January','February','March'), LI2.chem$year, ifelse(LI2.chem$month %in% c('October', 'November','December'), LI2.chem$year+1, LI2.chem$year))
+```
+
+```{r}
+LI3.chem$year=as.numeric(LI3.chem$year)
+LI3.chem$winter.year <- ifelse(LI3.chem$month %in% c('January','February','March'), LI3.chem$year, ifelse(LI3.chem$month %in% c('October', 'November','December'), LI3.chem$year+1, LI3.chem$year))
+```
+
+```{r}
+LI4.chem$year=as.numeric(LI4.chem$year)
+LI4.chem$winter.year <- ifelse(LI4.chem$month %in% c('January','February','March'), LI4.chem$year, ifelse(LI4.chem$month %in% c('October', 'November','December'), LI4.chem$year+1, LI4.chem$year))
+```
+
+```{r}
+LI5.chem$year=as.numeric(LI5.chem$year)
+LI5.chem$winter.year <- ifelse(LI5.chem$month %in% c('January','February','March'), LI5.chem$year, ifelse(LI5.chem$month %in% c('October', 'November','December'), LI5.chem$year+1, LI5.chem$year))
+```
+
+```{r}
+LI6.chem$year=as.numeric(LI6.chem$year)
+LI6.chem$winter.year <- ifelse(LI6.chem$month %in% c('January','February','March'), LI6.chem$year, ifelse(LI6.chem$month %in% c('October', 'November','December'), LI6.chem$year+1, LI6.chem$year))
+```
+
+```{r}
+LI7.chem$year=as.numeric(LI7.chem$year)
+LI7.chem$winter.year <- ifelse(LI7.chem$month %in% c('January','February','March'), LI7.chem$year, ifelse(LI7.chem$month %in% c('October', 'November','December'), LI7.chem$year+1, LI7.chem$year))
+```
+
+```{r}
+LI8.chem$year=as.numeric(LI8.chem$year)
+LI8.chem$winter.year <- ifelse(LI8.chem$month %in% c('January','February','March'), LI8.chem$year, ifelse(LI8.chem$month %in% c('October', 'November','December'), LI8.chem$year+1, LI8.chem$year))
+```
+
+```{r}
+CI1.chem$year=as.numeric(CI1.chem$year)
+CI1.chem$winter.year <- ifelse(CI1.chem$month %in% c('January','February','March'), CI1.chem$year, ifelse(CI1.chem$month %in% c('October', 'November','December'), CI1.chem$year+1, CI1.chem$year))
+```
+
+```{r}
+CI2.chem$year=as.numeric(CI2.chem$year)
+CI2.chem$winter.year <- ifelse(CI2.chem$month %in% c('January','February','March'), CI2.chem$year, ifelse(CI2.chem$month %in% c('October', 'November','December'), CI2.chem$year+1, CI2.chem$year))
+```
+
+```{r}
+CI3.chem$year=as.numeric(CI3.chem$year)
+CI3.chem$winter.year <- ifelse(CI3.chem$month %in% c('January','February','March'), CI3.chem$year, ifelse(CI3.chem$month %in% c('October', 'November','December'), CI3.chem$year+1, CI3.chem$year))
+```
+
+```{r}
+CI4.chem$year=as.numeric(CI4.chem$year)
+CI4.chem$winter.year <- ifelse(CI4.chem$month %in% c('January','February','March'), CI4.chem$year, ifelse(CI4.chem$month %in% c('October', 'November','December'), CI4.chem$year+1, CI4.chem$year))
+```
+
+```{r}
+CI5.chem$year=as.numeric(CI5.chem$year)
+CI5.chem$winter.year <- ifelse(CI5.chem$month %in% c('January','February','March'), CI5.chem$year, ifelse(CI5.chem$month %in% c('October', 'November','December'), CI5.chem$year+1, CI5.chem$year))
+```
+
+```{r}
+CI6.chem$year=as.numeric(CI6.chem$year)
+CI6.chem$winter.year <- ifelse(CI6.chem$month %in% c('January','February','March'), CI6.chem$year, ifelse(CI6.chem$month %in% c('October', 'November','December'), CI6.chem$year+1, CI6.chem$year))
+```
+
+
+
+###############################################
+# Now *aggregate data for year and season*,* using the year winter label
+###############
+
+
+
+# Aggregate (mean) data to season and years
+```{r}
+LI1.chem.seas=
+LI1.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site=rep('LI1', nrow=LI1.chem.seas), .before="year")
+
+```
+
+```{r}
+LI2.chem.seas=
+LI2.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='LI2', .before="year")
+```
+
+```{r}
+LI3.chem.seas=
+LI3.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='LI3', .before="year")
+```
+
+```{r}
+LI4.chem.seas=
+LI4.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='LI4', .before="year")
+```
+
+```{r}
+LI5.chem.seas=
+LI5.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='LI5', .before="year")
+```
+
+```{r}
+LI6.chem.seas=
+LI6.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='LI6', .before="year")
+```
+
+```{r}
+LI7.chem.seas=
+LI7.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='LI7', .before="year")
+```
+
+```{r}
+LI8.chem.seas=
+LI8.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='LI8', .before="year")
+```
+
+```{r}
+CI1.chem.seas=
+CI1.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='CI1', .before="year")
+```
+
+```{r}
+CI2.chem.seas=
+CI2.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='CI2', .before="year")
+```
+
+```{r}
+CI3.chem.seas=
+CI3.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='CI3', .before="year")
+```
+
+```{r}
+CI4.chem.seas=
+CI4.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='CI4', .before="year")
+```
+
+```{r}
+CI5.chem.seas=
+CI5.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='CI5', .before="year")
+```
+
+```{r}
+CI6.chem.seas=
+CI6.chem %>% 
+  select(-c(Site,Date, month)) %>% 
+  group_by(winter.year, Season) %>% 
+  summarise_all(mean, na.rm=T) %>% 
+  add_column(Site='CI6', .before="year")
+```
+
+
+# Combining *rbind* all seasonal means for chemistry across sites
+```{r}
+LB_chem.seas=
+  rbind(LI1.chem.seas, LI2.chem.seas, LI3.chem.seas, LI4.chem.seas,LI5.chem.seas,
+        LI6.chem.seas, LI7.chem.seas, LI8.chem.seas,
+        CI1.chem.seas, CI2.chem.seas,CI3.chem.seas, CI4.chem.seas,CI5.chem.seas,CI6.chem.seas)
+```
+
+
+
+# Can fill (impute) the NAs in the seasonal data with same-season mean within each stream
+
+## Function to *fill the NAn in df with mean of respective column*  
+```{r}
+NAN2mean=function(x){
+  x[which(is.nan(x)==T)]=mean(x, na.rm=T)
+  return(x)
+}
+
+#test
+test=c(1,4,5,7,NaN,2)
+NAN2mean(test)
+
+```
+
+# Function that uses the NAN2mean function, but first splits the df into summer and winter, then fill the NAs separately, then joins the season in a single df
+
+```{r}
+NAN2mean.seas=function(df){
+  s= df %>% filter(Season=='Summer') # extract summer
+  w= df %>% filter(Season=='Winter') # extract winter
+  w.fill=cbind(w[,c(1,2,3,4)],as.data.frame(apply(w[,c(5:17)], 2, NAN2mean))) # use the NAN2mean function to fill the NAs with column mean (within season)
+  s.fill=cbind(s[,c(1,2,3,4)],as.data.frame(apply(s[,c(5:17)], 2, NAN2mean))) # the same but for summer
+  df.fill=rbind(w.fill, s.fill) # cbind the seasons
+  df.fill=df.fill[order(df.fill$winter.year),] # sort them as the original df
+  return(df.fill)
+}
+```
+
+
+######## *FILLING some NAs in seasonal data with respective column and season mean* ####
+# fill the seasonal chem data using the NAN2mean.seas function
+ This step fills the NAs for those parameters that are missing for the years when data were collected.
+BUT Some sites were not visited at all for bunch of years, and no filling is attempted for these years.
+
+```{r}
+LI1.chem.seas.fill=NAN2mean.seas(LI1.chem.seas)
+  
+```
+
+```{r}
+LI2.chem.seas.fill=NAN2mean.seas(LI2.chem.seas)
+```
+
+```{r}
+LI3.chem.seas.fill=NAN2mean.seas(LI3.chem.seas)
+```
+
+```{r}
+LI4.chem.seas.fill=NAN2mean.seas(LI4.chem.seas)
+```
+
+
+```{r}
+LI5.chem.seas.fill=NAN2mean.seas(LI5.chem.seas)
+```  
+
+```{r}
+LI6.chem.seas.fill=NAN2mean.seas(LI6.chem.seas)
+```
+
+```{r}
+LI7.chem.seas.fill=NAN2mean.seas(LI7.chem.seas)
+```
+
+```{r}
+LI8.chem.seas.fill=NAN2mean.seas(LI8.chem.seas)
+```
+
+```{r}
+CI1.chem.seas.fill=NAN2mean.seas(CI1.chem.seas)
+```
+
+```{r}
+CI2.chem.seas.fill=NAN2mean.seas(CI2.chem.seas)
+```
+
+```{r}
+CI3.chem.seas.fill=NAN2mean.seas(CI3.chem.seas)
+```
+
+```{r}
+CI4.chem.seas.fill=NAN2mean.seas(CI4.chem.seas)
+```
+
+```{r}
+CI5.chem.seas.fill=NAN2mean.seas(CI5.chem.seas)
+```
+
+```{r}
+CI6.chem.seas.fill=NAN2mean.seas(CI6.chem.seas)
+```
+
+# There is still outlier in Hardness in LI1
+```{r}
+summary(LI1.chem.seas.fill$Hardness)
+which.max(LI1.chem.seas.fill$Hardness)
+
+LI1.chem.seas.fill[50,8] # 70 is way too much I think
+
+```
+# Convert this high hardness into the mean of column
+```{r}
+LI1.chem.seas.fill[50,8] = mean(LI1.chem.seas.fill$Hardness)
+```
+
+
+
+# Comnine all the sites using the filled df, towards the first PCA on chem data
+```{r}
+LB_chem.seas.fill=rbind(LI1.chem.seas.fill, LI2.chem.seas.fill, LI3.chem.seas.fill, LI4.chem.seas.fill, 
+                        LI5.chem.seas.fill, LI6.chem.seas.fill, LI7.chem.seas.fill, LI8.chem.seas.fill,
+                        CI1.chem.seas.fill, CI2.chem.seas.fill, CI3.chem.seas.fill, CI4.chem.seas.fill, CI5.chem.seas.fill, CI6.chem.seas.fill)
+```
+
+
+# Export the elaborated & partially imputed hydro-chemistry data for subset of streams most complete
+*The filled dataset on chemistry is deposited & associated to publication *
+```{r}
+write.csv(LB_chem.seas.fill, 'LB_chem.season.imputed.csv')
+```
+
+```{r}
+table(LB_chem.seas.fill$winter.year, LB_chem.seas.fill$Site)
+```
+
+
+# Just get the mean for each site and season
+```{r}
+LB_overall.mean=
+LB_chem.seas.fill %>% 
+  group_by(Site, Season) %>% 
+  summarise_all(mean)
+```
+
+
+
+####################################
+# Carry on the *PCA on chemistry*.
+###################################
+# *PCA with all available streams and data, to provide synthesis of main variability*
+Note there are missing values 
+
+```{r}
+PCA.chem=princomp(LB_chem.seas.fill[,c(5:17)], cor=T, scores=T)
+```
+
+```{r}
+PCA.chem$loadings
+PCA.chem$scores
+```
+
+```{r}
+install.packages('factoextra')
+library(factoextra)
+```
+
+```{r}
+fviz_pca_var(PCA.chem, repel = T, col.var="contrib",  gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+```
+
+# Plot PCA hydrochem variables
+# *Plot of Fig. S1* 
+
+```{r}
+pdf('PCA_hydrochem.pdf', w=4.5, h=4.5)
+fviz_pca_var(PCA.chem, repel = T, col.var="contrib",  gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"))
+dev.off()
+```
+
+
+
+```{r}
+fviz_pca_ind(PCA.chem, habillage = LB_chem.seas.fill$Site, addEllipses = T, label='none')
+```
+
+
+
+
+# Extract the scores of PCA chemistry into a df
+```{r}
+PCA.chem.ax=
+  cbind(LB_chem.seas.fill[,c(1,2,3,4)],
+        as.data.frame(PCA.chem$scores)
+       )
+
+```
+
+# Derive hulls for Site and Season over the two PC axes
+```{r}
+hull_pca.chem=
+PCA.chem.ax %>% 
+  group_by(Site, Season) %>% 
+  slice(chull(Comp.1, Comp.2))
+```
+
+# Plot All sites with Hull - for Winter
+```{r}
+PCA.chem.ax %>% 
+  mutate(year=as.numeric(year)) %>% 
+  filter(Season=='Winter') %>% 
+  ggplot()+aes(Comp.1, Comp.2, col=Site)+geom_point(alpha=.2)+geom_polygon(data=hull_pca.chem %>% filter(Season=='Winter'), fill=NA)
+
+
+```
+
+
+## *Some exploratory plots, not presented in paper*
+
+# Plot PC with year trajectories for each site
+```{r}
+PCA.chem.ax %>% 
+  mutate(year=as.numeric(year)) %>% 
+  #filter(Season=='Winter') %>% 
+  filter(Season=='Summer') %>% 
+dplyr:: filter(Site %in% c('CI2', 'CI4','CI5', 'LI1', 'LI2', 'LI4', 'LI5', 'LI6', 'LI8')) %>%  
+  ggplot()+aes(Comp.1, Comp.2, col=year)+geom_point(size=0.5)+geom_path()+theme_bw()+
+  facet_wrap(~Site)+scale_color_gradient(high='darkblue', low='gold3')+ggtitle('Summer')
+```
+
+```{r}
+PCA.chem.ax %>% 
+  mutate(year=as.numeric(year)) %>% 
+  filter(Season=='Winter') %>% 
+  #filter(Season=='Summer') %>% 
+dplyr:: filter(Site %in% c('CI2', 'CI4','CI5', 'LI1', 'LI2', 'LI4', 'LI5', 'LI6', 'LI8')) %>%  
+  ggplot()+aes(Comp.1, Comp.2, col=year)+geom_point(size=0.5)+geom_path()+theme_bw()+
+  facet_wrap(~Site)+scale_color_gradient(high='darkblue', low='gold3')+ggtitle('Winter')
+```
+
+```{r}
+PCA.chem.ax %>% 
+  ggplot()+aes(winter.year, Comp.1)+geom_path()+facet_wrap(~Site)
+```
+
+
+
+
+# Explore the years in common across streams
+## derive a variable reporting the years of data available
+```{r}
+LI1.year=
+unique(LI1.chem.seas.fill$year)
+
+LI2.year=
+unique(LI2.chem.seas.fill$year)
+
+LI3.year=
+unique(LI3.chem.seas.fill$year)
+
+LI4.year=
+  unique(LI4.chem.seas.fill$year)
+
+LI5.year=
+  unique(LI5.chem.seas.fill$year)
+
+LI6.year=
+  unique(LI6.chem.seas.fill$year)
+
+LI7.year=
+  unique(LI7.chem.seas.fill$year)
+
+LI8.year=
+  unique(LI8.chem.seas.fill$year)
+
+CI1.year=
+  unique(CI1.chem.seas.fill$year)
+
+CI2.year=
+  unique(CI2.chem.seas.fill$year)
+
+CI3.year=
+  unique(CI3.chem.seas.fill$year)
+
+CI4.year=
+  unique(CI4.chem.seas.fill$year)
+
+CI5.year=
+  unique(CI5.chem.seas.fill$year)
+
+CI6.year=
+  unique(CI6.chem.seas.fill$year)
+```
+
+```{r}
+LI4.year
+
+```
+
+
+# Try to construct a dataframe to hold common PC axis scores across sites
+*PC1*
+```{r}
+Common.PC1=data.frame(
+  year=rep(c(1981:2019), each=2),
+  Season=rep(c('Summer', 'Winter'), 39)
+)
+
+Common.PC1$year_season=paste(Common.PC1$year, Common.PC1$Season, sep='_')
+```
+
+# Add a **column reporting winter.year_season for each observation in PCA axes df*
+Here I use the winter year to match the right season in the year of sampling...
+```{r}
+PCA.chem.ax$wyear_season=paste(PCA.chem.ax$winter.year, PCA.chem.ax$Season, sep="_")
+```
+
+# Now add to the common PCs the actual PC scores *PC1*  from each stream by matching site_season
+Not the most elegant way...
+## A
+```{r}
+zio=PCA.chem.ax %>% filter(Site=='LI1') # first just extract each site at a time
+
+Common.PC1$PC1.LI1= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI2')
+Common.PC1$PC1.LI2= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI3')
+Common.PC1$PC1.LI3= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI4')
+Common.PC1$PC1.LI4= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI5')
+Common.PC1$PC1.LI5= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI6')
+Common.PC1$PC1.LI6= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI7')
+Common.PC1$PC1.LI7= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI8')
+Common.PC1$PC1.LI8= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI1')
+Common.PC1$PC1.CI1= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI2')
+Common.PC1$PC1.CI2= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI3')
+Common.PC1$PC1.CI3= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI4')
+Common.PC1$PC1.CI4= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI5')
+Common.PC1$PC1.CI5= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI6')
+Common.PC1$PC1.CI6= zio$Comp.1[match(Common.PC1$year_season, zio$wyear_season)]
+
+
+```
+
+
+# Construct a df for *common PC2*
+```{r}
+Common.PC2=data.frame(
+  year=rep(c(1981:2019), each=2),
+  Season=rep(c('Summer', 'Winter'), 39)
+)
+
+Common.PC2$year_season=paste(Common.PC2$year, Common.PC2$Season, sep='_')
+```
+
+```{r}
+zio=PCA.chem.ax %>% filter(Site=='LI1') # first just extract each site at a time
+
+Common.PC2$PC2.LI1= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI2')
+Common.PC2$PC2.LI2= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI3')
+Common.PC2$PC2.LI3= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI4')
+Common.PC2$PC2.LI4= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI5')
+Common.PC2$PC2.LI5= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI6')
+Common.PC2$PC2.LI6= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI7')
+Common.PC2$PC2.LI7= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='LI8')
+Common.PC2$PC2.LI8= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI1')
+Common.PC2$PC2.CI1= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI2')
+Common.PC2$PC2.CI2= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI3')
+Common.PC2$PC2.CI3= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI4')
+Common.PC2$PC2.CI4= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI5')
+Common.PC2$PC2.CI5= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+
+zio=PCA.chem.ax %>% filter(Site=='CI6')
+Common.PC2$PC2.CI6= zio$Comp.2[match(Common.PC2$year_season, zio$wyear_season)]
+```
+
+
+
+```{r}
+library(corrplot)
+```
+
+
+# Test for simple synchrony (correlation) between each pairs. 
+*here using complete cases with 7 streams*
+```{r}
+Common.PC1 %>% 
+  filter(Season=='Summer') %>% 
+  select(-c(Season, year_season, PC1.LI2,PC1.LI3,PC1.LI7, PC1.LI8, PC1.CI1, PC1.CI3,PC1.CI6)) %>% 
+  na.omit %>% 
+  select(-year) %>% 
+  cor() %>% 
+  corrplot(method='color', type='lower', addCoef.col = "black", title = 'Summer PC1 synchrony', mar=c(0,0,3,0), number.cex = .8, tl.cex = 0.7)
+
+
+```
+# As above, synchrony for winter 
+```{r}
+Common.PC1 %>% 
+  filter(Season=='Winter') %>% 
+  select(-c(Season, year_season, PC1.LI2,PC1.LI3,PC1.LI7, PC1.LI8, PC1.CI1, PC1.CI3,PC1.CI6)) %>% 
+  na.omit %>% 
+  select(-year) %>% 
+  cor() %>% 
+  corrplot(method='color', type='lower', addCoef.col = "black", title = 'Winter PC1 synchrony', mar=c(0,0,3,0), number.cex = 0.8,tl.cex = 0.7)
+
+```
+
+
+
+
+# Synchrny pairwise corr
+*here using pairwise.complete.obs for 9 streams*
+```{r}
+Common.PC1 %>% 
+  filter(Season=='Summer') %>% 
+  select(-c(Season, year_season, PC1.LI3,PC1.LI7, PC1.CI1, PC1.CI3, PC1.CI6)) %>% 
+  #na.omit %>% 
+  select(-year) %>% 
+  cor(use='pairwise.complete.obs') %>% 
+  corrplot(method='color', type='lower', addCoef.col = "black", title = 'Summer synchrony', mar=c(0,0,2,0), number.cex = .8)
+```
+# Count the missing values for each stream in the common PCs
+
+```{r}
+apply( Common.PC1,2, function(x) sum(is.na(x)))
+```
+
+
+########################################################
+# Explore the combination of sites with minimum missin data
+```{r}
+Common.PC1 %>% 
+  #filter(Season=='Summer') %>% 
+  filter(Season=='Winter') %>% 
+  select(year, Season,PC1.LI1, PC1.LI4,PC1.LI5, PC1.LI6,  PC1.CI2,PC1.CI4) %>% 
+  #select(year) %>% unique()
+  na.omit 
+```
+
+# Create the first *most complete set of PC1 scores for a few streams*. Will inpute missing values where reasonable
+```{r}
+Compl.comm.PC1=
+Common.PC1 %>% 
+  #filter(Season=='Summer') %>% 
+  #filter(Season=='Winter') %>% 
+  select(year, Season,PC1.LI1, PC1.LI4,PC1.LI5, PC1.LI6,  PC1.CI2,PC1.CI4)
+```
+
+# filling some missin values with means
+*summer of 1992 for LI1 and LI4 streams* is now filled
+```{r}
+which(is.na(Compl.comm.PC1$PC1.LI1)) # these is a summer value
+
+# Fill the summer NA in LI1 with the mean of summer scores
+Compl.comm.PC1$PC1.LI1 [which(is.na(Compl.comm.PC1$PC1.LI1))] =
+Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.LI1) %>% colMeans(na.rm=T)
+
+# Fill the summer NA in LI2 with the mean of summer scores
+Compl.comm.PC1$PC1.LI4 [which(is.na(Compl.comm.PC1$PC1.LI4))] =
+Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.LI4) %>% colMeans(na.rm=T)
+
+```
+
+# *fill LI5 stream*
+```{r}
+#Summer
+Compl.comm.PC1$PC1.LI5[ c(23,25,27,31)]# these are all summer NA for LI5
+
+# fill these summer scores with the overal mean of summer for this site
+Compl.comm.PC1$PC1.LI5[ c(23,25,27,31)]=rep( Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.LI5) %>% colMeans(na.rm=T), 4)
+
+#Winter
+Compl.comm.PC1$PC1.LI5[ c(24,26,32)] # these are winter months wiht NAs
+# fill
+Compl.comm.PC1$PC1.LI5[ c(24,26,32)]=rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.LI5) %>% colMeans(na.rm=T), 3)
+
+Compl.comm.PC1$PC1.LI5[ c(28)] # another winter NA to fill
+Compl.comm.PC1$PC1.LI5[ c(28)] = Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.LI5) %>% colMeans(na.rm=T)
+```
+
+
+# *fill LI6 stream*
+```{r}
+#summer
+Compl.comm.PC1$PC1.LI6[c(5,23,27,29)]# these are summer months with NAs
+#fill
+Compl.comm.PC1$PC1.LI6[c(5,23,27,29)]=rep( Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.LI6) %>% colMeans(na.rm=T), 4)
+
+#winter
+Compl.comm.PC1$PC1.LI6[c(6,30)]
+
+Compl.comm.PC1$PC1.LI6[c(6,30)]= rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.LI6) %>% colMeans(na.rm=T), 2)
+
+Compl.comm.PC1$PC1.LI6[c(8,32)]# other winter NAs
+
+ Compl.comm.PC1$PC1.LI6[c(8,32)]= rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.LI6) %>% colMeans(na.rm=T), 2)
+
+
+```
+
+# *fill CI2 stream*
+```{r}
+#summer
+Compl.comm.PC1$PC1.CI2[c(1,3,5,23)]#these are suymmer months with NAs- the first three years are missing entirely
+
+Compl.comm.PC1$PC1.CI2[c(1,3,5,23)]= rep( Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.CI2) %>% colMeans(na.rm=T), 4)
+
+#winter
+Compl.comm.PC1$PC1.CI2[c(2,4,6)]# these are winter months with NAs
+#fill
+Compl.comm.PC1$PC1.CI2[c(2,4,6)] =rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.CI2) %>% colMeans(na.rm=T), 3)
+
+Compl.comm.PC1$PC1.CI2[c(8)]# a winter NAs
+Compl.comm.PC1$PC1.CI2[c(8)]=Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.CI2) %>% colMeans(na.rm=T)
+
+```
+
+
+# *fill CI4 stream*
+```{r}
+#summer
+Compl.comm.PC1$PC1.CI4[c(1,3,5,23)]#these are suymmer months with NAs- the first three years are missing entirely
+
+Compl.comm.PC1$PC1.CI4[c(1,3,5,23)]= rep( Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.CI4) %>% colMeans(na.rm=T), 4)
+
+#winter
+Compl.comm.PC1$PC1.CI4[c(2,4,6)]# these are winter months with NAs
+#fill
+Compl.comm.PC1$PC1.CI4[c(2,4,6)] =rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.CI4) %>% colMeans(na.rm=T), 3)
+
+
+```
+
+
+####### Correlation synchrony across 6 streams using PC1 scores
+# The *correlation [synchrony] plot for the imputed PC1 scores* across 6 streams
+```{r}
+Compl.comm.PC1 %>% 
+  filter(Season=='Summer') %>% 
+  select(- c(year, Season)) %>% 
+  cor %>% 
+  corrplot(method='color', type='lower', addCoef.col = "black", title = 'Summer inp.PC1 synchrony', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+
+```
+
+# winter cor
+```{r}
+Compl.comm.PC1 %>% 
+  filter(Season=='Winter') %>% 
+  select(- c(year, Season)) %>% 
+  cor %>% 
+  corrplot(method='color', type='lower', addCoef.col = "black", title = 'Winter inp.PC1 synchrony', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+  
+```
+
+
+
+# plotting simple correlation between sites based on PC1 and delta PC1
+```{r}
+Compl.comm.PC1 %>% filter(Season=='Winter') %>% filter(year %in% c(1985:2018)) %>% select(c(3,4,5,6,7,8)) %>% as.matrix() %>% diff() %>% 
+  as.data.frame() %>% pairs(panel=panel.smooth)
+
+Compl.comm.PC1 %>% filter(Season=='Winter') %>% filter(year %in% c(1985:2018)) %>% select(c(3,4,5,6,7,8)) %>% 
+  as.data.frame() %>% pairs(panel=panel.smooth)
+
+```
+
+
+
+
+
+########################################################
+# Explore the combination of sites with minimum missin data - towards the common complete PCs
+#####################################################
+```{r}
+Common.PC1 %>% 
+  #filter(Season=='Summer') %>% 
+  filter(Season=='Winter') %>% 
+  select(year, Season,PC1.LI1, PC1.LI4,PC1.LI5, PC1.LI6,  PC1.CI2,PC1.CI4) %>% 
+  #select(year) %>% unique()
+  na.omit 
+```
+
+# Create the first *most complete set of PC1 scores for a few streams*. Will inpute missing values where reasonable
+```{r}
+Compl.comm.PC1=
+Common.PC1 %>% 
+  #filter(Season=='Summer') %>% 
+  #filter(Season=='Winter') %>% 
+  select(year, Season,PC1.LI1, PC1.LI4,PC1.LI5, PC1.LI6,  PC1.CI2,PC1.CI4)
+```
+
+# filling some missin values with means of column
+*summer of 1992 for LI1 and LI4 streams* is now filled
+```{r}
+which(is.na(Compl.comm.PC1$PC1.LI1)) # these is a summer value
+
+# Fill the summer NA in LI1 with the mean of summer scores
+Compl.comm.PC1$PC1.LI1 [which(is.na(Compl.comm.PC1$PC1.LI1))] =
+Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.LI1) %>% colMeans(na.rm=T)
+
+# Fill the summer NA in LI2 with the mean of summer scores
+Compl.comm.PC1$PC1.LI4 [which(is.na(Compl.comm.PC1$PC1.LI4))] =
+Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.LI4) %>% colMeans(na.rm=T)
+
+```
+
+# *fill LI5 stream*
+```{r}
+#Summer
+Compl.comm.PC1$PC1.LI5[ c(23,25,27,31)]# these are all summer NA for LI5
+
+# fill these summer scores with the overal mean of summer for this site
+Compl.comm.PC1$PC1.LI5[ c(23,25,27,31)]=rep( Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.LI5) %>% colMeans(na.rm=T), 4)
+
+#Winter
+Compl.comm.PC1$PC1.LI5[ c(24,26,32)] # these are winter months wiht NAs
+# fill
+Compl.comm.PC1$PC1.LI5[ c(24,26,32)]=rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.LI5) %>% colMeans(na.rm=T), 3)
+
+Compl.comm.PC1$PC1.LI5[ c(28)] # another winter nA
+Compl.comm.PC1$PC1.LI5[ c(28)] = Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.LI5) %>% colMeans(na.rm=T)
+```
+
+
+# *fill LI6 stream*
+```{r}
+#summer
+Compl.comm.PC1$PC1.LI6[c(5,23,27,29)]# these are summer months with NAs
+#fill
+Compl.comm.PC1$PC1.LI6[c(5,23,27,29)]=rep( Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.LI6) %>% colMeans(na.rm=T), 4)
+
+#winter
+Compl.comm.PC1$PC1.LI6[c(6,30)]
+
+Compl.comm.PC1$PC1.LI6[c(6,30)]= rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.LI6) %>% colMeans(na.rm=T), 2)
+
+Compl.comm.PC1$PC1.LI6[c(8,32)]# other winter NAs
+
+ Compl.comm.PC1$PC1.LI6[c(8,32)]= rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.LI6) %>% colMeans(na.rm=T), 2)
+
+
+```
+
+# *fill CI2 stream*
+```{r}
+#summer
+Compl.comm.PC1$PC1.CI2[c(1,3,5,23)]#these are suymmer months with NAs- the first three years are missing entirely
+
+Compl.comm.PC1$PC1.CI2[c(1,3,5,23)]= rep( Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.CI2) %>% colMeans(na.rm=T), 4)
+
+#winter
+Compl.comm.PC1$PC1.CI2[c(2,4,6)]# these are winter months with NAs
+#fill
+Compl.comm.PC1$PC1.CI2[c(2,4,6)] =rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.CI2) %>% colMeans(na.rm=T), 3)
+
+Compl.comm.PC1$PC1.CI2[c(8)]# a winter NAs
+Compl.comm.PC1$PC1.CI2[c(8)]=Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.CI2) %>% colMeans(na.rm=T)
+
+```
+
+
+# *fill CI4 stream*
+```{r}
+#summer
+Compl.comm.PC1$PC1.CI4[c(1,3,5,23)]#these are suymmer months with NAs- the first three years are missing entirely
+
+Compl.comm.PC1$PC1.CI4[c(1,3,5,23)]= rep( Compl.comm.PC1 %>% filter(Season=='Summer') %>% select(PC1.CI4) %>% colMeans(na.rm=T), 4)
+
+#winter
+Compl.comm.PC1$PC1.CI4[c(2,4,6)]# these are winter months with NAs
+#fill
+Compl.comm.PC1$PC1.CI4[c(2,4,6)] =rep( Compl.comm.PC1 %>% filter(Season=='Winter') %>% select(PC1.CI4) %>% colMeans(na.rm=T), 3)
+
+
+```
+
+
+####### Correlation synchrony across 6 streams using PC1 scores
+# The *correlation [synchrony] plot for the imputed PC1 scores* across 6 streams
+```{r}
+Compl.comm.PC1 %>% 
+  filter(Season=='Summer') %>% 
+  select(- c(year, Season)) %>% 
+  cor %>% 
+  corrplot(method='color', type='lower', addCoef.col = "black", title = 'Summer inp.PC1 synchrony', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+
+```
+
+# winter cor
+```{r}
+Compl.comm.PC1 %>% 
+  filter(Season=='Winter') %>% 
+  select(- c(year, Season)) %>% 
+  cor %>% 
+  corrplot(method='color', type='lower', addCoef.col = "black", title = 'Winter inp.PC1 synchrony', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+  
+```
+
+
+
+# plotting simple correlation between sites based on PC1 and delta PC1
+```{r}
+Compl.comm.PC1 %>% filter(Season=='Winter') %>% filter(year %in% c(1985:2018)) %>% select(c(3,4,5,6,7,8)) %>% as.matrix() %>% diff() %>% 
+  as.data.frame() %>% pairs(panel=panel.smooth)
+
+Compl.comm.PC1 %>% filter(Season=='Winter') %>% filter(year %in% c(1985:2018)) %>% select(c(3,4,5,6,7,8)) %>% 
+  as.data.frame() %>% pairs(panel=panel.smooth)
+
+```
+
+
+
+
+#############
+# *the NAO*
+##############
+
+```{r}
+library(wsyn)
+```
+
+
+# Import NAO montly data
+```{r}
+library(readxl)
+NAOy <- read_excel("NAOdata.xlsx", sheet = "MonthlyNAO")
+names(NAOy)[1]='Year'
+```
+# NAO to long format; Filter years
+```{r}
+NAOm=
+NAOy %>% 
+  filter(Year>1980) %>% 
+  pivot_longer(-Year, names_to = 'month')
+
+NAOm$year_month=paste(NAOm$Year, NAOm$month, sep='_')
+
+NAOm=
+  NAOm %>% 
+  filter(Year<2020)
+
+```
+
+# Simple plot of NAO
+```{r}
+NAOm %>% 
+  ggplot()+aes(year_month, value, group=1)+geom_path()
+```
+
+# Work on NAO monthly data for wavelet modeling
+```{r}
+NAOy$times=rownames(NAOy)
+times.NAOy=NAOy %>% pull(times)
+times.NAOy=as.numeric(times.NAOy)
+```
+
+```{r}
+ts.NAOy=NAOy %>% pull(value)
+ts.NAOy=cleandat(ts.NAOy, times.NAOy, clev=1)
+wl.NAOy=wt(ts.NAOy$cdat, times.NAOy)
+
+plotmag(wl.NAOy)
+```
+
+# Work on NAO seasonal (keep the winter year as with chemical data)
+# Add tge winter year
+```{r}
+NAOm$winter.year= ifelse(NAOm$month %in% c('Jan','Feb','Mar'), NAOm$Year, ifelse(NAOm$month %in% c('Oct', 'Nov','Dec'), NAOm$Year+1, NAOm$Year))
+```
+# Add season to NAO
+```{r}
+NAOm$Season=ifelse(NAOm$month %in% c('Oct','Nov','Dec', 'Jan', 'Feb', 'Mar'), 'Winter', 'Summer')
+```
+
+# Add the seasonal mean to NAOm
+```{r}
+NAOm=
+  NAOm %>% group_by(winter.year, Season) %>% 
+  mutate(seas.mean=mean(value))
+```
+
+
+
+
+# The seasonal NAO, winter and summer
+*Bradley & Ormerdo take winter NAO as Dec-March (I also unclude oct-nov previous year)
+```{r}
+NAOseason=
+  NAOm%>% 
+  select(winter.year, Season, value) %>% 
+  group_by(winter.year, Season) %>%  summarise(mean.nao=mean(value))
+
+```
+
+```{r fig.width=8.5, fig.height=4}
+NAOseason %>% 
+  mutate(phase=ifelse(mean.nao >0, 'pos', 'neg' )) %>% 
+  #filter(Season=='Winter') %>% 
+  ggplot()+aes(winter.year, mean.nao)+geom_point(aes(col=phase))+
+  geom_path()+facet_wrap(~Season)+theme_bw()+xlab(NULL)+geom_hline(yintercept = 0, col='grey20')+scale_color_manual(values=c('steelblue','darkred' ))+
+   scale_x_continuous(breaks=seq(1981,2020, by=2))+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+
+```
+
+```{r}
+NAOseason %>% 
+   mutate(phase=ifelse(mean.nao >0, 'pos', 'neg' )) %>% 
+  filter(Season=='Winter') %>% 
+  ggplot()+aes(winter.year, mean.nao)+geom_point(aes(col=phase))+ geom_path()+facet_wrap(~Season)+theme_bw()+xlab(NULL)+geom_hline(yintercept = 0, col='grey20')+
+   scale_x_continuous(breaks=seq(1981,2020, by=2))+theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = 'none')+scale_color_manual(values=c('steelblue','red' ))+ylab('North Atlantic Oscillation (NAO')
+```
+
+
+# Extract timeseries for winter and summer NAO and fix for wavelet modelling
+```{r}
+ts.NAOw= NAOseason %>% filter(Season=='Winter') %>% pull(mean.nao)
+timesNAOw= NAOseason %>% filter(Season=='Winter') %>% pull(winter.year) %>% as.numeric()
+
+ts.NAOs= NAOseason %>% filter(Season=='Summer') %>% pull(mean.nao)
+timesNAOs= NAOseason %>% filter(Season=='Summer') %>% pull(winter.year) %>% as.numeric()
+
+#clean data for wavelet
+ts.NAOw=cleandat(ts.NAOw, timesNAOw, clev=1)
+ts.NAOs=cleandat(ts.NAOs, timesNAOs, clev=1)
+```
+
+
+
+#Wavelet NAO seasonal- WINTER
+# Plot of NAO winter wavelet decomposition
+# Plot *part of FIG.1, upper panel*
+```{r}
+wt.NAOw=wt(ts.NAOw$cdat, timesNAOw)
+plotmag(wt.NAOw, title='Winter NAO')
+
+pdf('wt.NAOw.pdf', w=6, h=4)
+  plotmag(wt.NAOw, title='Winter NAO')
+dev.off()
+```
+
+
+
+
+### Discharge data for LI1 
+# Import LI1 flow data from Fiona
+```{r}
+LI1_flow <- read_csv("Rain_flow_LB_Fiona/LI1BrianneFlume15minFlow.csv")
+str(LI1_flow)
+```
+
+# add details to LI1 flow data
+```{r}
+LI1_flow$Day=
+as.Date(LI1_flow$Day, format="%d/%m/%Y")
+
+LI1_flow$month=
+month(LI1_flow$Day)
+
+LI1_flow$Year=
+format(LI1_flow$Day, format='%Y')
+
+```
+
+#montly LI1 flow
+```{r}
+LI1_flow.m=
+  LI1_flow %>% group_by(Year, month) %>% summarise(m.mean=mean(Runoff, na.rm=T))
+
+LI1_flow.m$year_month=paste(LI1_flow.m$Year, LI1_flow.m$month, sep='_') 
+LI1_flow.m$time=rownames(LI1_flow.m)
+
+summary(LI1_flow.m)
+
+LI1_flow.m %>% 
+  ggplot()+aes(time, m.mean, group=1)+geom_line()+geom_smooth()
+
+```
+
+
+
+
+##################
+# the seasonal streamflow for LI1
+*add winter year*
+```{r}
+LI1_flow.m$Year=as.numeric(LI1_flow.m$Year)
+
+LI1_flow.m$winter.year=ifelse(LI1_flow.m$month %in% c(10,11,12), LI1_flow.m$Year+1, LI1_flow.m$Year)# add winter year
+LI1_flow.m$season=ifelse(LI1_flow.m$month %in% c(10,11,12,1,2,3), 'Winter', 'Summer')# add season
+
+```
+# Derive seasonal flow mean for LI1
+```{r}
+LI1.flow.seas=LI1_flow.m %>% group_by(season, winter.year) %>% summarise(m.season=mean(m.mean, na.rm=T))
+```
+
+# Extract winter wavelet transform - only from 1996
+#plot wt for LI1 flow
+```{r}
+ts.LI1.flow.w=LI1.flow.seas %>% filter(season=='Winter') %>% pull(m.season)
+times.LI1.flow.w=LI1.flow.seas %>% filter(season=='Winter') %>% pull(winter.year) %>% as.numeric()
+
+wt.LI1.flow.w=
+  wt(cleandat(ts.LI1.flow.w, times.LI1.flow.w, clev=1)$cdat, times.LI1.flow.w )
+
+plotmag(wt.LI1.flow.w, title='LI1 winter runoff')
+
+```
+
+# Save plot for LI1 flow
+# Plot *part of FIG.2, lower panel*
+```{r}
+pdf('wt_LI1flow.pdf', w=6, h=4)
+plotmag(wt.LI1.flow.w, title='LI1 winter runoff')
+dev.off()
+```
+
+
+
+
+
+
+##### Rain data ####
+## Import the rain data from Fiona (shared folder)
+```{r}
+library(readr)
+LB_rain<- read_csv("Rain_flow_LB_Fiona/LB_monthly_rain_stats.csv")
+LB_rain[,1]=NULL
+
+```
+# subset rain years and stream matchin LB10 bio data
+```{r}
+LB10_rain=
+LB_rain %>% filter(Site %in% codeID) %>% filter(Ante %in% yearID)
+```
+
+# derive the yearly means for rain data (including summer and winter)
+```{r}
+LB10_rain_ymeans=
+LB10_rain %>% 
+  group_by(Site, Ante) %>% 
+  summarise(m.sum=mean(sum.r), m.mean=mean(mean.r), m.wet=mean(wet_freq.r), m.dry=mean(dry_freq.r))
+```
+
+
+# Trends in rain stats overall
+```{r}
+LB10_rain_ymeans %>% 
+  ggplot()+aes(Ante, m.mean)+geom_smooth()+facet_wrap(~Site)+geom_path()
+
+LB10_rain_ymeans %>% 
+  ggplot()+aes(Ante, m.dry)+geom_smooth()+facet_wrap(~Site)
+
+```
+
+
+# derive the yearly means for rain data (preceding winter only)
+# and add the NAOw values
+```{r}
+LB10_rain_ymeans.w=
+LB10_rain %>% 
+  filter(Season=='Winter') %>% 
+  group_by(Site, Ante) %>% 
+  summarise(m.sum=mean(sum.r), m.mean=mean(mean.r), m.wet=mean(wet_freq.r), m.dry=mean(dry_freq.r))
+
+
+LB10_rain_ymeans.w$NAOw=
+  NAOseason[NAOseason$Season=='Winter',]$mean.nao[match(LB10_rain_ymeans.w$Ante,  NAOseason[NAOseason$Season=='Winter',]$winter.year)]
+
+```
+
+# Plot winter rain stats trends including relation with NAOw
+*some increasing trends in n of wet days over time*
+*positive NAO has more wet days, but not overall higher amount of rain*
+```{r}
+LB10_rain_ymeans.w %>% 
+  ggplot()+aes(Ante, m.mean)+geom_smooth()+facet_wrap(~Site)+geom_path()+ylab('Mean winter rain')+xlab(NULL)
+
+LB10_rain_ymeans.w %>% 
+  ggplot()+aes(Ante, m.wet)+geom_smooth()+facet_wrap(~Site)+geom_path()+ylab('Mean winter # wet days')+xlab(NULL)
+
+
+LB10_rain_ymeans.w %>% 
+  ggplot()+aes(NAOw, m.wet)+geom_smooth(method='lm')+geom_jitter(aes(col=Site), width=0.2)+ylab('Monthly # wet days')+xlab("Winter NAO")+geom_vline(xintercept = 0, col='grey70')
+
+LB10_rain_ymeans.w %>% 
+  ggplot()+aes(NAOw, m.mean)+geom_smooth(method='lm')+geom_jitter(aes(col=Site), width=0.2)+ylab('Mean daily rain')+xlab("Winter NAO")+geom_vline(xintercept = 0, col='grey70')
+                                                                  
+                                                                  
+                
+```
+
+# save plot of monthly rain nao
+```{r}
+plot_monthlyrain_nao=
+  LB10_rain_ymeans.w %>% 
+  ggplot()+aes(NAOw, m.mean)+geom_smooth(method='lm')+geom_jitter(aes(col=Site), width=0.2)+ylab('Mean daily winter rain')+xlab("Winter NAO")+geom_vline(xintercept = 0, col='grey70')+scale_color_brewer(name='Stream',palette='Paired')
+  
+```
+# Model for NAO effect on daily rain
+```{r}
+m.rain.nao=
+  lme(m.mean~NAOw, random=~1|Site, data= LB10_rain_ymeans.w)
+
+summary(m.rain.nao)
+
+```
+
+
+
+# *Wavelet of monthly mean rain*
+
+# Plot of monthly rain LI8 wt
+```{r}
+
+
+plotmag(
+wt(
+cleandat(
+LB10_rain_ymeans.w %>% 
+  as.data.frame() %>% 
+  select(c(Site, Ante, m.mean)) %>% 
+  pivot_wider(names_from = Ante, values_from = m.mean) %>% filter(Site=='LI8') %>% select(-'Site') %>% as.matrix(),
+times=time.lb10, clev=1)$cdat, time.lb10), title='WT daily rain LI8'
+)
+
+
+plotmag(
+wt(
+cleandat(
+LB10_rain_ymeans.w %>% 
+  as.data.frame() %>% 
+  select(c(Site, Ante, m.wet)) %>% 
+  pivot_wider(names_from = Ante, values_from = m.wet) %>% filter(Site=='LI8') %>% select(-'Site') %>% as.matrix(),
+times=time.lb10, clev=4)$cdat, time.lb10), title='WT monthly wetdays LI8'
+)
+
+
+
+```
+
+# Plot of wavelet daily rain LI8
+# Plot *part of FIG.2, central panel*
+```{r}
+pdf('wtLI8.rain.pdf', w=6, h=4)
+plotmag(
+wt(
+cleandat(
+LB10_rain_ymeans.w %>% 
+  as.data.frame() %>% 
+  select(c(Site, Ante, m.mean)) %>% 
+  pivot_wider(names_from = Ante, values_from = m.mean) %>% filter(Site=='LI8') %>% select(-'Site') %>% as.matrix(),
+times=time.lb10, clev=4)$cdat, time.lb10), title='Mean daily winter rain LI8'
+)
+  
+  dev.off()
+```
+
+
+# *Figure 2 completed was composed with inkscape*
+
+
+
+###########################
+#### *Temperature data* 
+# Import he air T data (from Fiona shared folder)
+```{r}
+Tmonthly=
+  read_csv("Rain_flow_LB_Fiona/HadUK_monthly_tas_1980to2019.csv")
+```
+# get the yearly mean winter T
+```{r}
+Tyearly=
+Tmonthly %>% 
+  filter(Season=='Winter') %>% 
+  filter(Site %in% codeID) %>% filter(Ante %in% yearID) %>% 
+  group_by(Ante, Site) %>% 
+  summarise(mean.w.T=mean(value))
+```
+
+#Check trends in yearly winter T for the LB10 sites
+*clearly rsing trends, especially up to 2000
+```{r}
+Tyearly %>% 
+  ggplot()+aes(Ante, mean.w.T, group=1)+geom_path()+facet_wrap(~Site)+geom_smooth()+xlab(NULL)+ylab('Mean winter air T')
+```
+
+# No particular strong timescale of variation in winter T based on wavelt transform
+```{r}
+plotmag(
+wt(
+cleandat(
+Tyearly %>% 
+  as.data.frame() %>% 
+  select(c(Site, Ante, mean.w.T)) %>% 
+  pivot_wider(names_from = Ante, values_from = mean.w.T) %>% filter(Site=='LI8') %>% select(-'Site') %>% as.matrix(),
+times=time.lb10, clev=4)$cdat, time.lb10), title='WT yearly w_T LI8'
+)
+```
+
+```{r}
+Tyearly$NAOw=
+  NAOseason[NAOseason$Season=='Winter',]$mean.nao[match(Tyearly$Ante,  NAOseason[NAOseason$Season=='Winter',]$winter.year)]
+```
+
+# positive NAO match warmer T, as expected
+```{r}
+Tyearly %>% 
+  ggplot()+aes(NAOw, mean.w.T)+geom_jitter(aes(col=Site), width=0.2)+geom_smooth(method='lm')+ylab('Mean winter air T')+xlab('Winter NAO')+geom_vline(xintercept = 0, col='grey70')
+
+
+```
+
+```{r}
+plot_winterT_nao=
+  Tyearly %>% 
+  ggplot()+aes(NAOw, mean.w.T)+geom_jitter(aes(col=Site), width=0.2)+geom_smooth(method='lm')+ylab('Mean winter air T')+xlab('Winter NAO')+geom_vline(xintercept = 0, col='grey70')+scale_color_brewer(name='Stream',palette='Paired')
+
+  
+```
+
+
+# combined plot rain and winter temperature vs nao
+```{r fig.width=7, fig.height=3.5}
+plot_monthlyrain_nao +
+  
+plot_winterT_nao   + plot_layout(guide='collect')
+```
+
+## Plot Figure 3 (ex Fig 2) (rain and T vs NAO)
+```{r }
+pdf('Fig3_Temp_Rain_NAO.pdf', w=7,h=4)
+plot_monthlyrain_nao +
+  
+plot_winterT_nao   + plot_layout(guide='collect')
+
+dev.off()
+```
+
+# Model of daily rain and air T vs NAO (for Fig 3 (ex fig2))
+```{r}
+m.rain.nao=
+  lme(m.mean~NAOw, random=~1|Site, data= LB10_rain_ymeans.w )
+
+summary(m.rain.nao)
+
+#m.rain.nao_cor=
+  #lme(m.mean~NAOw, random=~1|Site, data= LB10_rain_ymeans.w, corr=corAR1(form=~Ante|Site) )
+
+#AIC(m.rain.nao, m.rain.nao_cor)
+
+m.Temp.nao= 
+  lme(mean.w.T~NAOw, random=~1|Site, data= Tyearly)
+
+summary(m.Temp.nao)
+
+
+```
+
+
+
+
+# Calculate moving window of PC1 synchrony
+
+# first derive the raw values (not cleandat) of PC1 winter, and put them in ts (site x years)
+```{r}
+Compl.comm.PC1.raw.ts=
+Compl.comm.PC1 %>% filter(Season=='Winter') %>% filter(year %in% c(1985:2018)) %>% select(c(3,4,5,6,7,8)) %>% 
+  t()
+
+# add year as colname
+colnames(Compl.comm.PC1.raw.ts)=Compl.comm.PC1 %>% filter(Season=='Winter') %>% filter(year %in% c(1985:2018)) %>% pull(1)
+
+```
+
+# then run the mw to get synchrony for 6 years span (as done for richness, abund)
+
+```{r}
+PC1.w.synch_mw=as.data.frame(matrix(nrow=length(time.window5), ncol=1))
+
+
+rownames(PC1.w.synch_mw)=time.window5
+colnames(PC1.w.synch_mw)='PC1_winter.synch.mw'
+
+
+
+# the richness synch as simple cor
+for(y in 1: length(time.window5)){
+ PC1.w.synch_mw[y,]= mean(
+   cor(
+     t(Compl.comm.PC1.raw.ts[,c(y:(y+5))]), method='spearman'
+     )
+   )
+}
+```
+
+# then add the mwNAOw
+```{r}
+PC1.w.synch_mw$wNAOwindow=wNAO_window$NAOwindow[match(rownames(PC1.w.synch_mw), wNAO_window$time.window5)]
+```
+
+# Plot mw synch for PC1 winter vs NAOmw (not great synch effect of NAO on PC1 chemistry)
+# *Plot Fig. S1* 
+```{r fig.width=6}
+
+PC1.w.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  ggplot()+aes(wNAOwindow, PC1_winter.synch.mw, label=row.names(abund.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),]))+geom_point(size=2)+geom_text_repel(size=2.5)+
+  geom_smooth( col='grey50', alpha=.3, method='lm', se=F, linetype='dashed')+ylab('PC1 winter - synchrony mw')+ xlab('Winter NAO window')
+
+
+```
+
+```{r}
+pdf('Fig S1_PC1_synch.pdf', w=5, h=4)
+PC1.w.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  ggplot()+aes(wNAOwindow, PC1_winter.synch.mw, label=row.names(abund.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),]))+geom_point(size=2)+geom_text_repel(size=2.5)+
+  geom_smooth( col='grey50', alpha=.3, method='lm', se=F, linetype='dashed')+ylab('PC1 winter - synchrony mw')+ xlab('Winter NAO window')
+dev.off()
+```
+# Model of chemical PC1 synchrony vs NAO
+```{r}
+
+summary(lm(PC1_winter.synch.mw~wNAOwindow, data=PC1.w.synch_mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] ))
+
+ 
+```
+
+
+
+# Derive *variance of PC1 winter for each moving window*
+
+```{r}
+PC1w.var.mw=as.data.frame(matrix(nrow=length(time.window5), ncol=6))
+
+
+rownames(PC1w.var.mw)=time.window5
+colnames(PC1w.var.mw)=c('PC1.LI1','PC1.LI4','PC1.LI5', 'PC1.LI6','PC1.CI2','PC1.CI4')
+
+
+for(y in 1: length(time.window5)){
+  PC1w.var.mw[y,]=apply(Compl.comm.PC1.raw.ts[,c(y:(y+5))], 1,var)
+}
+
+```
+
+```{r}
+PC1w.var.mw$wNAOmw=wNAO_window$NAOwindow[match(rownames(PC1w.var.mw), wNAO_window$time.window5)]
+```
+
+# Plot of variance in PC1 vs NAO window
+*positive nao phases are linked to higher PC1 variance*
+# *Plot FIG S3*
+```{r}
+
+PC1w.var.mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),]  %>% 
+  pivot_longer(cols=c(1:6)) %>% 
+  ggplot()+aes(wNAOmw, log(value))+geom_point(aes(col=name))+geom_smooth(method='lm')+geom_smooth(aes(col=name), size=0.3, method='lm', se=F)+ ylab('Variance PC1 (log)')+xlab('Winter NAO window')
+
+
+```
+
+
+```{r}
+library(nlme)
+```
+
+# Model for NAO effect on PC1 variance (moving window)
+
+
+```{r}
+PC1w.var.mw$timewindow=rownames(PC1w.var.mw)
+
+PC1w.var.mw %>% 
+  pivot_longer(c(1:6)) %>% 
+    filter(timewindow %in% time.window5[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29)]) %>% 
+   lme(log(value)~wNAOmw, random=~1|name, data=.) %>% 
+   summary()
+```
+
+
+
