@@ -1669,7 +1669,7 @@ plotmag(wt.LI1.flow.w, title='LI1 winter runoff')
 ```
 
 # Save plot for LI1 flow
-# Plot *part of FIG.1, lower panel*
+# Plot *part of FIG.2, lower panel*
 ```{r}
 pdf('wt_LI1flow.pdf', w=6, h=4)
 plotmag(wt.LI1.flow.w, title='LI1 winter runoff')
@@ -1758,7 +1758,14 @@ plot_monthlyrain_nao=
   ggplot()+aes(NAOw, m.mean)+geom_smooth(method='lm')+geom_jitter(aes(col=Site), width=0.2)+ylab('Mean daily winter rain')+xlab("Winter NAO")+geom_vline(xintercept = 0, col='grey70')+scale_color_brewer(name='Stream',palette='Paired')
   
 ```
+# Model for NAO effect on daily rain
+```{r}
+m.rain.nao=
+  lme(m.mean~NAOw, random=~1|Site, data= LB10_rain_ymeans.w)
 
+summary(m.rain.nao)
+
+```
 
 
 
@@ -1794,7 +1801,7 @@ times=time.lb10, clev=4)$cdat, time.lb10), title='WT monthly wetdays LI8'
 ```
 
 # Plot of wavelet daily rain LI8
-# Plot *part of FIG.1, central panel*
+# Plot *part of FIG.2, central panel*
 ```{r}
 pdf('wtLI8.rain.pdf', w=6, h=4)
 plotmag(
@@ -1811,7 +1818,7 @@ times=time.lb10, clev=4)$cdat, time.lb10), title='Mean daily winter rain LI8'
 ```
 
 
-# *Figure 1 completed was composed with inkscape*
+# *Figure 2 completed was composed with inkscape*
 
 
 
@@ -1856,11 +1863,11 @@ times=time.lb10, clev=4)$cdat, time.lb10), title='WT yearly w_T LI8'
 Tyearly$NAOw=
   NAOseason[NAOseason$Season=='Winter',]$mean.nao[match(Tyearly$Ante,  NAOseason[NAOseason$Season=='Winter',]$winter.year)]
 ```
+
 # positive NAO match warmer T, as expected
 ```{r}
 Tyearly %>% 
   ggplot()+aes(NAOw, mean.w.T)+geom_jitter(aes(col=Site), width=0.2)+geom_smooth(method='lm')+ylab('Mean winter air T')+xlab('Winter NAO')+geom_vline(xintercept = 0, col='grey70')
-
 
 
 ```
@@ -1881,15 +1888,37 @@ plot_monthlyrain_nao +
 plot_winterT_nao   + plot_layout(guide='collect')
 ```
 
-## Plot Figure 2 (rain and T vs NAO)
+## Plot Figure 3 (ex Fig 2) (rain and T vs NAO)
 ```{r }
-pdf('Fig2_Temp_Rain_NAO.pdf', w=7,h=4)
+pdf('Fig3_Temp_Rain_NAO.pdf', w=7,h=4)
 plot_monthlyrain_nao +
   
 plot_winterT_nao   + plot_layout(guide='collect')
 
 dev.off()
 ```
+
+# Model of daily rain and air T vs NAO (for Fig 3 (ex fig2))
+```{r}
+m.rain.nao=
+  lme(m.mean~NAOw, random=~1|Site, data= LB10_rain_ymeans.w )
+
+summary(m.rain.nao)
+
+#m.rain.nao_cor=
+  #lme(m.mean~NAOw, random=~1|Site, data= LB10_rain_ymeans.w, corr=corAR1(form=~Ante|Site) )
+
+#AIC(m.rain.nao, m.rain.nao_cor)
+
+m.Temp.nao= 
+  lme(mean.w.T~NAOw, random=~1|Site, data= Tyearly)
+
+summary(m.Temp.nao)
+
+
+```
+
+
 
 
 # Calculate moving window of PC1 synchrony
@@ -1935,19 +1964,26 @@ PC1.w.synch_mw$wNAOwindow=wNAO_window$NAOwindow[match(rownames(PC1.w.synch_mw), 
 # *Plot Fig. S1* 
 ```{r fig.width=6}
 
-
 PC1.w.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
   ggplot()+aes(wNAOwindow, PC1_winter.synch.mw, label=row.names(abund.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),]))+geom_point(size=2)+geom_text_repel(size=2.5)+
   geom_smooth( col='grey50', alpha=.3, method='lm', se=F, linetype='dashed')+ylab('PC1 winter - synchrony mw')+ xlab('Winter NAO window')
 
 
 ```
+
 ```{r}
 pdf('Fig S1_PC1_synch.pdf', w=5, h=4)
 PC1.w.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
   ggplot()+aes(wNAOwindow, PC1_winter.synch.mw, label=row.names(abund.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),]))+geom_point(size=2)+geom_text_repel(size=2.5)+
   geom_smooth( col='grey50', alpha=.3, method='lm', se=F, linetype='dashed')+ylab('PC1 winter - synchrony mw')+ xlab('Winter NAO window')
 dev.off()
+```
+# Model of chemical PC1 synchrony vs NAO
+```{r}
+
+summary(lm(PC1_winter.synch.mw~wNAOwindow, data=PC1.w.synch_mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] ))
+
+ 
 ```
 
 
@@ -1974,7 +2010,7 @@ PC1w.var.mw$wNAOmw=wNAO_window$NAOwindow[match(rownames(PC1w.var.mw), wNAO_windo
 
 # Plot of variance in PC1 vs NAO window
 *positive nao phases are linked to higher PC1 variance*
-# *Plot FIG S2*
+# *Plot FIG S3*
 ```{r}
 
 PC1w.var.mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),]  %>% 
@@ -1993,6 +2029,8 @@ library(nlme)
 
 
 ```{r}
+PC1w.var.mw$timewindow=rownames(PC1w.var.mw)
+
 PC1w.var.mw %>% 
   pivot_longer(c(1:6)) %>% 
     filter(timewindow %in% time.window5[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29)]) %>% 
@@ -3004,64 +3042,59 @@ ggplot()+aes(geodist, mean.pop.synch, col=NAOmw.q5)+geom_smooth(method='lm', se=
 
 
 ```
-# *Plot for Fig.3*
+# *Plot for Fig.3 using all timewindows
+*not in paper and not reflecting the model*
 ```{r}
-pdf("Fig.3_Synch_slopes.pdf", w=5.5, h=4)
+#pdf("Fig.3_Synch_slopes.pdf", w=5.5, h=4)
 meanpop_synchronies_mw %>% 
 ggplot()+aes(geodist, mean.pop.synch, col=NAOmw.q5)+geom_smooth(method='lm', se=F)+scale_color_brewer (palette='Reds')+
   ylab('Mean population synchrony (mw)')+xlab('Distance')+geom_smooth(col='grey40', method='lm', size=1.5, linetype='dashed')+
   labs(col='NAO quantiles')
 
-dev.off()
+#dev.off()
 ```
 
 
 
 
 # simple model of synchrony ~ geodistance*NAO interaction
-*positive interaction effect but weak when including every second window, and removing duplicated pairs*
+positive interaction effect but weak when including every second window, and removing duplicated pairs*
+*not in paper*
 ```{r}
 meanpop_synchronies_mw
 
 m0=glm(mean.pop.synch~geodist*NAOmw, data=meanpop_synchronies_mw, family='gaussian')
 summary(m0)
 
-m1=glm(mean.pop.synch~geodist*NAOmw, 
+m.int=glm(mean.pop.synch~geodist*NAOmw, 
        data=meanpop_synchronies_mw[!duplicated(meanpop_synchronies_mw$mean.pop.synch),] %>% 
          filter(timewindow %in% time.window5[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29)]),
        family = 'gaussian')
 
-summary(m1)
+summary(m.int)
 
 ```
 
-# simple models for different quantiles of NAO with differences in both slope and intercept
-```{r}
-m0=glm(mean.pop.synch~geodist, data= meanpop_synchronies_mw %>% filter(NAOmw.q5 =="[-0.142,0.0639]"))
-
-m7=glm(mean.pop.synch~geodist, data=meanpop_synchronies_mw %>% filter(NAOmw.q5 =="(0.636,1.02]"))
-
-summary(m0)
-summary(m7)
-
-```
 
 
 # Model random effect of NAO quantile to mirror the plot with decay...
-*Support for the inclusion of random INTERCEPT effect for different NAO quantiles* 
+*Support for the inclusion of random INTERCEPT (less so for random slope) effect for different NAO quantiles* 
 ```{r}
 library(nlme)
 
+# no random eff at all
 m0= gls(mean.pop.synch ~ geodist,
         data= meanpop_synchronies_mw[!duplicated(meanpop_synchronies_mw$mean.pop.synch),] %>% 
           filter(timewindow %in% time.window5[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29)]) , method='REML')
 summary(m0)
 
+# random intercept for NAO quantiles
 m1=
   lme(mean.pop.synch ~ geodist , random=~1|NAOmw.q5, 
       data= meanpop_synchronies_mw[!duplicated(meanpop_synchronies_mw$mean.pop.synch),] %>% 
           filter(timewindow %in% time.window5[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29)]) )
 
+#random intercept and slope
 m2=
   lme(mean.pop.synch ~ geodist , random=~1+geodist|NAOmw.q5, 
       data= meanpop_synchronies_mw[!duplicated(meanpop_synchronies_mw$mean.pop.synch),] %>% 
@@ -3072,33 +3105,60 @@ m2=
 summary(m1)
 summary(m2)
 
-
+# support for inclusion of random intercept
 anova(m0,m1,m2)
-
-m3=
-  lme(mean.pop.synch ~ geodist:NAOmw.q5 , random=~1|NAOmw.q5, 
-      data= meanpop_synchronies_mw[!duplicated(meanpop_synchronies_mw$mean.pop.synch),] %>% 
-          filter(timewindow %in% time.window5[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29)]) )
-
-
-summary(m3)
-
-
-m1=
-  lme(mean.pop.synch ~ geodist , random=list(~1|NAOmw.q5, ~1|
-      data= meanpop_synchronies_mw[!duplicated(meanpop_synchronies_mw$mean.pop.synch),] %>% 
-          filter(timewindow %in% time.window5[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29)]) )
 
 
 
 ```
 
 
+
+
+
+# create subset clean (model like) version of mean population synchrony mw, for plotting model fits more easily
+Removing duplicated synchrony values and skipping every second time window (as done in the models)
+```{r}
+meanpop_synchronies_mw_model= meanpop_synchronies_mw[!duplicated(meanpop_synchronies_mw$mean.pop.synch),] %>% 
+         filter(timewindow %in% time.window5[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29)])
+
+meanpop_synchronies_mw_model$m1fit<-
+predict(m1)
+
+meanpop_synchronies_mw_model$m2fit<-
+predict(m2)
+
+
+```
+
+# plotting *Fig3 with equal slope* for NAO quantiles
+```{r fig.width=5.5}
+pdf("Fig.3_intercept_revis.pdf", w=5.5, h=4)
+meanpop_synchronies_mw_model %>% 
+ggplot()+aes(geodist, mean.pop.synch, col=NAOmw.q5)+geom_line(aes(y=m1fit), size=1.2)+scale_color_brewer (palette='Reds')+
+  ylab('Mean population synchrony (mw)')+xlab('Distance')+geom_smooth(col='grey10', method='lm', size=1, linetype='dashed')+
+  labs(col='NAO quantiles')
+dev.off()
+```
+
+
+#model m2 (random slope) Plotting
+```{r}
+meanpop_synchronies_mw_model %>% 
+ggplot()+aes(geodist, mean.pop.synch, col=NAOmw.q5)+geom_line(aes(y=m2fit), size=1.2)+scale_color_brewer (palette='Reds')+
+  ylab('Mean population synchrony (mw)')+xlab('Distance')+geom_smooth(col='grey10', method='lm', size=1, linetype='dashed')+
+  labs(col='NAO quantiles')
+```
+
+
+
+
+
 #########################################
 # Calculate Abundance synchrony moving window
 #########################################
 
-
+# abundance synchrony mw
 ```{r}
 abund.synch_mw=as.data.frame(matrix(nrow=length(time.window5), ncol=1))
 
@@ -3108,7 +3168,7 @@ colnames(abund.synch_mw)='Abund.synch.mw'
 
 
 
-# the richness synch as simple cor
+# the abund synch as simple cor
 for(y in 1: length(time.window5)){
  abund.synch_mw[y,]= mean(
    cor(
@@ -3118,8 +3178,36 @@ for(y in 1: length(time.window5)){
 }
 ```
 
+
+
+
+add moving window nao
 ```{r}
 abund.synch_mw$wNAOwindow=wNAO_window$NAOwindow[match(rownames(abund.synch_mw), wNAO_window$time.window5)]
+```
+
+# calculate the variance of the abundance synchronmy mw
+```{r}
+abund.synch.var_mw=as.data.frame(matrix(nrow=length(time.window5), ncol=1))
+
+
+rownames(abund.synch.var_mw)=time.window5
+colnames(abund.synch.var_mw)='Abund.synch.var.mw'
+
+
+
+# the abund synch as simple cor
+for(y in 1: length(time.window5)){
+ abund.synch.var_mw[y,]= var(as.vector(
+   cor(
+     t(abund.ts[,c(y:(y+5))]), method='spearman'
+     )
+   ))
+}
+```
+# add variance in abund synchrony
+```{r}
+abund.synch_mw$synch.var=abund.synch.var_mw$Abund.synch.var.mw
 ```
 
 
@@ -3134,12 +3222,6 @@ abund.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>%
   ggplot()+aes(wNAOwindow, Abund.synch.mw, label=row.names(abund.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),]))+geom_point(size=2)+geom_text_repel(size=3)+
   geom_smooth( col='grey50', alpha=.3, method='lm')+ylab('Abundance synchrony mw')+ xlab('Winter NAO mw')
 
-# using all windows
-abund.synch_mw %>% 
-  #mutate(RegRich.mw= reg.richness %>% rollmean(k=6, align = 'center')) %>% 
-  #mutate(MeanRich.mw= rowMeans(Richness.mw)) %>% 
-  ggplot()+aes(wNAOwindow, Abund.synch.mw, label=row.names(abund.synch_mw))+geom_point(size=2)+geom_text_repel(size=3)+
-  geom_smooth( col='grey50', alpha=.3, method='lm')+ylab('Abundance synchrony mw')+ xlab('Winter NAO mw')
 
 ```
 
@@ -3153,14 +3235,21 @@ abund.synch_mw %>%
   geom_path(aes(row.names(abund.synch_mw) ,wNAOwindow), col='blue')+theme(axis.text.x = element_text(angle=45, hjust=1))+
   xlab(NULL)+ylab('Mean abundance snchrony')+scale_y_continuous(sec.axis = sec_axis(~.*1, name = "Winter NAO mw"))+theme(axis.title.y.right = element_text(color = "blue")) +theme(axis.text.y.right = element_text(color='blue'))+theme(axis.title = element_text(size=12), axis.text.x = element_text(size=12)) +scale_x_discrete(labels=time.window5_skip)
 
+abund.synch_mw %>% 
+  ggplot()+aes(row.names(abund.synch_mw), Abund.synch.mw, group=1)+geom_point(size=3)+theme_bw()+geom_errorbar(aes(ymin=Abund.synch.mw-synch.var, ymax=Abund.synch.mw+synch.var), col='grey60')+
+  geom_path(aes(row.names(abund.synch_mw) ,wNAOwindow), col='blue')+theme(axis.text.x = element_text(angle=45, hjust=1))+
+  xlab(NULL)+ylab('Mean abundance snchrony')+scale_y_continuous(sec.axis = sec_axis(~.*1, name = "Winter NAO mw"))+theme(axis.title.y.right = element_text(color = "blue")) +theme(axis.text.y.right = element_text(color='blue'))+theme(axis.title = element_text(size=12), axis.text.x = element_text(size=12)) +scale_x_discrete(labels=time.window5_skip)
+
+
 ```
 
 # Save plot abundance synchrony
-# Plot *part of Fig.4* 
+# Plot *part of Fig.5 (ex fig.4)* 
 ```{r}
 pdf('Abund_synch_time.pdf', w=6, h=3.5)
 abund.synch_mw %>% 
-  ggplot()+aes(row.names(abund.synch_mw), Abund.synch.mw, group=1)+geom_point(size=3)+theme_bw()+
+  ggplot()+aes(row.names(abund.synch_mw), Abund.synch.mw, group=1)+geom_point(size=3)+theme_bw()+geom_errorbar(aes(ymin=Abund.synch.mw-synch.var, ymax=Abund.synch.mw+synch.var), col='grey60', size=0.6)+
+  geom_point(size=3)+
   geom_path(aes(row.names(abund.synch_mw) ,wNAOwindow), col='blue')+theme(axis.text.x = element_text(angle=45, hjust=1))+
   xlab(NULL)+ylab('Mean abundance snchrony')+scale_y_continuous(sec.axis = sec_axis(~.*1, name = "Winter NAO mw"))+theme(axis.title.y.right = element_text(color = "blue")) +theme(axis.text.y.right = element_text(color='blue'))+theme(axis.title = element_text(size=12), axis.text.x = element_text(size=12)) +scale_x_discrete(labels=time.window5_skip)
 
@@ -3177,6 +3266,12 @@ m_abun=gls(Abund.synch.mw~wNAOwindow,data=abund.synch_mw[c(1,3,5,7,9,11,13,15,17
 summary(m_abun)  # ab.synch = 0.26 +0.35 * NAOw
 ```
 
+# Nao phases not related to abundance absolute values, but just its spatial synchr across streams
+```{r}
+
+lb10.div %>% 
+  ggplot()+aes(NAOw, log(abund), col=Code)+geom_smooth(method='lm', se=F)+geom_point()
+```
 
 
 
@@ -4030,9 +4125,9 @@ plot_sync_rao+plot_stab_rao + plot_layout(guides='collect') & theme(legend.posit
 ```
 
 
-# *Plot Fig.6* as in the paper
+# *Plot Fig.7* as in the paper
 ```{r}
-pdf('Fig.6_FD_synchrony.pdf', w=6, h=4.5)
+pdf('Fig.7_FD_synchrony.pdf', w=6.4, h=4.5)
 plot_sync_rao+plot_stab_rao + plot_layout(guides='collect') & theme(legend.position = 'top')
 
 dev.off()
@@ -4042,6 +4137,17 @@ dev.off()
 # model for functional diversity vs synch & stability
 Models that account for stream as random effect temporal autocorr
 ```{r}
+
+m0.rao=
+  cbind.data.frame(
+synch.loreau.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  pivot_longer(cols=c(2:11), values_to = 'CommSynch.Loreau'),
+FunRao2.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>%  
+  pivot_longer(cols=c(1:10), values_to = 'FunRao', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+  lm(CommSynch.Loreau~FunRao,  data=.)
+
+# random stream effect
 m.synch.rao=
 cbind.data.frame(
 synch.loreau.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
@@ -4055,12 +4161,83 @@ FunRao2.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>%
 
 summary(m.synch.rao)
 
+# random slope too
+m.synch.rao_b=
+cbind.data.frame(
+synch.loreau.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  pivot_longer(cols=c(2:11), values_to = 'CommSynch.Loreau'),
+FunRao2.mw [c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>%  
+  pivot_longer(cols=c(1:10), values_to = 'FunRao', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+   
+  lme(CommSynch.Loreau~FunRao, random= ~1+FunRao|Code, cor=corAR1(form=~as.numeric(as.factor(time.window))|Code), data=.)
 
 
+AIC(m0.rao, m.synch.rao, m.synch.rao_b)
 
 
 ```
 
+# Plotting different models for RaoQ
+*not in paper*
+# creating RaoQ df with comm synchrony and subsetted to reflect the model
+```{r}
+Rao_Synch.model=
+cbind.data.frame(
+synch.loreau.mw %>% pivot_longer(cols=c(2:11), values_to = 'CommSynch.Loreau'),
+FunRao2.mw %>%  pivot_longer(cols=c(1:10), values_to = 'FunRao2', names_to = 'Code')) %>% 
+  left_join(wNAO_window, by=c('time.window' = 'time.window5')) %>% 
+  filter(time.window %in% time.window5_skip )
+
+#time windows as numeric
+Rao_Synch.model$time.window_n=as.numeric(as.factor(Rao_Synch.model$time.window))
+  
+m00=
+  gls(sqrt(CommSynch.Loreau)~FunRao2  ,
+    data=Rao_Synch.model)
+
+m0=
+gls(sqrt(CommSynch.Loreau)~FunRao2  ,cor=corAR1(form=~time.window_n|Code),
+    data=Rao_Synch.model)
+
+mzio=
+lme(sqrt(CommSynch.Loreau)~FunRao2, random= ~1|Code ,
+    data=Rao_Synch.model)
+
+mziocor=
+lme(sqrt(CommSynch.Loreau)~FunRao2, random= ~1|Code ,corr=corAR1(form=~time.window_n|Code),
+    data=Rao_Synch.model)
+
+mzio2=
+lme(sqrt(CommSynch.Loreau)~FunRao2, random= ~1+FunRao2|Code, corr=corAR1(form=~time.window_n|Code), 
+    data=Rao_Synch.model)
+
+
+AIC(m00,m0,mzio, mziocor)
+
+summary(mzio)
+summary(mziocor)
+
+Rao_Synch.model$m00=
+  predict(m00)
+
+Rao_Synch.model$mzio=
+  predict(mzio)
+
+Rao_Synch.model$mziocor=
+  predict(mziocor)
+
+Rao_Synch.model$m0rao=
+  predict(m0)
+
+
+Rao_Synch.model %>% 
+ggplot()+aes(FunRao2, sqrt(CommSynch.Loreau))+geom_point(aes(col=Code))+geom_line(aes(y=mziocor, col=Code))+ylab('Community synchrony')+  theme(axis.title = element_text(size=12))+scale_color_discrete(name='Stream')+xlab('Functional diversity')
+```
+
+
+
+# Model for stability vs RoaQ, not significant
 ```{r}
 m.stab.rao=
 cbind.data.frame(
@@ -4151,7 +4328,7 @@ Rao_dev.mw[,s]=rollmean(Rao_deviations %>%  filter(Code==lb10.siteID[s]) %>% pul
 }
 ```
 
-# Plot Fig.S3 - functional deviation
+# Plot Fig.S4 - functional deviation
 ```{r fig.width=6}
 cbind.data.frame(
 synch.loreau.mw %>% pivot_longer(cols=c(2:11), values_to = 'CommSynch.Loreau'),
@@ -4182,7 +4359,7 @@ dev.off()
 library(nlme)
 ```
 
-*to update*
+*to update for functional deviation*
 ```{r}
 m.dev=
 cbind.data.frame(
