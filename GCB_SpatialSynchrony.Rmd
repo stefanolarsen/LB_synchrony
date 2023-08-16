@@ -1,0 +1,1396 @@
+---
+title: "GCB_SpatialSynchrony"
+author: "Stefano Larsen"
+date: "2023-08-16"
+output: html_document
+---
+
+
+```{r}
+
+install.packages('ggrepel')
+library(readxl)
+library(tidyverse)
+library(reshape2)
+library(ggrepel)
+library(zoo)
+library(vegan)
+library(codyn)
+library(iCAMP)
+library(data.table)
+install.packages('gdata')
+library(gdata)
+library(corrplot)
+library(RColorBrewer)
+```
+
+
+
+```{r}
+theme_set(theme_bw())
+```
+
+
+
+###### ###################
+### *Biotic synchrony* ###
+
+########################
+
+
+# Import the invertebrate data as given by Isabelle
+*will work on subsetting, species, sites, and imputing some missing species abundance values*
+```{r}
+bugs<- read.csv("~/Documents/LB_synchrony/Brianne Inverts to 2018 .csv")
+```
+
+# wotk on the site code. Add 'I' and remove 'DLB' from the string names
+```{r}
+bugs$Code=str_remove(bugs$Code, "DLB")
+str_sub(bugs$Code, 2,1)='I'
+bugs$Code
+bugs$X=NULL
+```
+
+# How many years per stream
+*site.occur* 
+```{r}
+table(bugs$Code, bugs$year)
+rowSums(table(bugs$Code, bugs$year))
+
+site.occur=(table(bugs$Code, bugs$year))
+
+```
+
+# Plot the site occurrence, number of years sampled
+*need to impute missing years for each spp in some sites*
+# year 
+```{r fig.width=6}
+site.occur %>% 
+  as.data.frame() %>% 
+  #filter(Var2!=c('1981', '1982')) %>% 
+ ggplot()+aes(Var2, Var1)+geom_tile(col='grey40',aes(fill=as.factor(Freq)))+xlab(NULL)+ylab(NULL)+theme(legend.position = 'none')+
+  theme(axis.text.x = element_text(angle = 90, vjust =0.4, hjust =-1))
+```
+
+# To create a complete and common df I should exclude LI3,LI5,GI1,GI2,CI6,CI3 and
+1981,1982,1994, 2008,2009,2011
+
+
+```{r}
+site.occur %>% 
+  as.data.frame() %>% 
+  filter(!Var2 %in% c('1981', '1982', '1994', '2008','2009','2011')) %>%
+  filter(!Var1 %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% 
+ ggplot()+aes(Var2, Var1)+geom_tile(col='grey40',aes(fill=as.factor(Freq)))+theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+```
+# Look at the LB10 sites with actual years holes, to be filled
+
+```{r}
+site.occur %>% 
+  as.data.frame() %>% 
+  filter(!Var2 %in% c('1981', '1982')) %>%
+  filter(!Var1 %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% 
+ ggplot()+aes(Var2, Var1)+geom_tile(col='grey40',aes(fill=as.factor(Freq)))+theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+ ggtitle('LB10 most complete')+xlab(NULL)+ylab(NULL)
+```
+
+
+
+
+
+# overall spp abundance and occurrences
+```{r fig.width=7}
+spp_occur=sort(colSums((decostand(bugs[,-c(1,2)], 'pa'))), decreasing = T)
+plot(spp_occur)
+
+spp_abb=sort(colSums(bugs[,-c(1,2)]), decreasing = T)
+plot(spp_abb)
+
+plot(log(spp_abb), log(spp_occur))
+
+```
+
+
+```{r}
+spp_site_occur=
+  sort(
+  bugs %>% 
+  select(-year) %>% 
+  group_by(Code) %>% summarise_all(sum) %>% 
+  select(-Code) %>% 
+  decostand('pa') %>% 
+  colSums(),
+  decreasing = T)
+
+```
+
+
+```{r}
+spp_year_occ=
+bugs %>% 
+  select(-Code) %>% 
+  group_by(year) %>% summarise_all(sum) %>% 
+  select(-year) %>% 
+  decostand('pa') %>% 
+  colSums() %>% 
+  sort(decreasing = T)
+```
+
+
+
+
+# gather bugs data in long format -useful for subsequent manipulations
+*this still contains all spp and sites*
+```{r}
+bugs.long=
+bugs %>% 
+  gather(Species, abund, -c(Code, year))
+```
+
+
+
+# Here subsetting *spp occurring in > 5 streams & more than 7years*, while excluding certain streams for good (too few years).
+# The bugs subset with species occurring in > 5 streams *bugs.subs6*
+# LI5 seems to have many years, but large hole in 1995-2000
+# this is also like *LB10* in Ecology paper
+```{r}
+
+bugs.subs6=
+  cbind(bugs %>%
+        filter(!year %in% c('1981', '1982', '1994', '2008','2009','2011')) %>% # excluding these years
+        filter(!Code %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% # excluding these sites
+        select(Code,year) ,
+  
+        bugs %>% 
+        filter(!year %in% c('1981', '1982', '1994', '2008','2009','2011')) %>%
+        filter(!Code %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% 
+        select( names(spp_site_occur[spp_site_occur>5]) & names(spp_year_occ[spp_year_occ>7])) 
+       )
+```
+
+
+
+# Create a vector with species identity for the reduced df with 10 streams and no holes
+```{r}
+speciesID.subs=
+colnames(bugs.subs6[,-c(1,2)])
+```
+
+# The list of *species synchrony* for each species between each stream in the reduced set of sites (LB10- bugs.subs6). Based on simple correlation
+*still with a few holes (no species imputation yet)*
+```{r}
+spp.list.corr<-list()
+
+for(spp in 1:length(speciesID.subs)) {
+  spp.list.corr[[spp]]= 
+  #speciesID.subs=as.factor(names(spp_site_occur[spp_site_occur>6]))
+  
+  sppcorr=
+  bugs.subs6 %>% 
+  select(Code, year, speciesID.subs[spp]) %>%  
+  spread(Code, value=speciesID.subs[spp]) %>% select(-year) %>% 
+  cor(method='spearman') %>% 
+  gdata::unmatrix() %>% 
+  data.frame() %>% 
+  cbind(rep(speciesID.subs[spp], 1 )) %>% 
+    cbind(row.names(.)) %>% 
+  `colnames<-`(c('synch', 'Species','site.pair'))# use this function: `colnames<-` to assign column names within a pipe
+    
+  }
+  
+
+spp.list.corr[[17]]
+
+```
+
+# Create a list similar to spp.list.corr but as simple correlation matrix. Used for calculating the mean across species.
+
+```{r}
+list2<-list()
+
+for(spp in 1:length(speciesID.subs)) {
+  list2[[spp]]= 
+  #speciesID.subs=as.factor(names(spp_site_occur[spp_site_occur>6]))
+  
+  sppcorr=
+  bugs.subs6 %>% 
+  select(Code, year, speciesID.subs[spp]) %>%  
+  spread(Code, value=speciesID.subs[spp]) %>% select(-year) %>% 
+  cor(method='spearman')
+}
+
+list2[41]
+```
+
+# Derive the mean synchrony across sites based on the mean synchrony of species in LB10 
+```{r}
+array2=array(as.numeric(unlist(list2)), dim=c(length(unique(bugs.subs6$Code)), length(unique(bugs.subs6$Code)), length(speciesID.subs)))
+dimnames(array2)=list( unique(bugs.subs6$Code), unique(bugs.subs6$Code),speciesID.subs )
+
+array2[,,1]
+
+```
+
+# The mean synchrony across LB10 sites based on simple correlation across populations from species occurring > 6 streams
+```{r}
+mean_spp_corr.mat=
+apply(array2, c(1,2), mean, na.rm=T)
+```
+
+```{r fig.width=7}
+install.packages('corrplot')
+library(corrplot)
+corrplot(round(mean_spp_corr.mat,2), method='color', type='lower', addCoef.col = "black", title = 'Mean pop synchrony (corr)', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+```
+
+
+
+
+# Combine the population synchronies in the list in one long synchronies dataframe
+#*synchronies_spp*
+```{r}
+synchronies_spp=
+rbindlist(spp.list.corr)
+
+synchronies_spp=
+synchronies_spp %>% 
+  filter(synch != 1)
+```
+# add the *stream distances*
+```{r}
+synchronies_spp$dist=dist.pairs$dist[match(synchronies_spp$site.pair, dist.pairs$site_pairs)]
+```
+
+
+#add the mean species synchrony overall
+```{r}
+synchronies_spp %>% 
+  group_by(Species) %>% 
+  mutate(mean.spp.synch=mean(synch))
+```
+
+
+
+
+# Add the columns of 'from' and 'to' in the synchronies_spp df
+```{r}
+
+synchronies_spp=cbind(synchronies_spp,
+colsplit(synchronies_spp$site.pair, ':', c('from', 'to'))
+                     )
+```
+# Add the chemical distance (derived in the 'Env.data' script) to the species synchrony df
+```{r}
+synchronies_spp$chem_dist=synchronies.df$chem.dist[match(synchronies_spp$site.pair, synchronies.df$site.pair2)]
+
+#ad the chemical summer synch
+synchronies_spp$chem_synch.s=synchronies.df$synch.s [match(synchronies_spp$site.pair, synchronies.df$site.pair2)]
+
+# add the chamical winter synch
+synchronies_spp$chem_synch.w=synchronies.df$synch.w [match(synchronies_spp$site.pair, synchronies.df$site.pair2)]
+
+```
+
+
+
+
+# Plot the mean populations synchrony vs chemical distance...
+```{r}
+synchronies_spp %>% 
+  ggplot()+aes(chem_dist, synch)+geom_smooth()+theme_bw()+
+  geom_point(aes(col=Species), alpha=0.2)+theme(legend.position = 'none')+
+  ylab('Population synchrony (corr)')
+```
+
+
+# Plot the mean populations synchrony vs chemical synchr...
+*no apparent relation between simple population synch and chemical (PC1) simple synchrony*
+```{r}
+synchronies_spp %>% 
+  ggplot()+aes(chem_synch.s, synch)+geom_smooth()+theme_bw()+
+  geom_point(aes(col=Species), alpha=0.2)+theme(legend.position = 'none')+
+  ylab('Population synchrony (corr)')
+
+synchronies_spp %>% 
+  ggplot()+aes(chem_synch.w, synch)+geom_smooth()+theme_bw()+
+  geom_point(aes(col=Species), alpha=0.2)+theme(legend.position = 'none')+
+  ylab('Population synchrony (corr)')
+
+
+synchronies_spp %>% 
+  ggplot()+aes(chem_synch.s, synch)+geom_smooth()+theme_bw()+
+  theme(legend.position = 'none')+
+  ylab('Population synchrony (corr)')
+
+synchronies_spp %>% 
+  ggplot()+aes(chem_synch.w, synch)+geom_smooth()+theme_bw()+
+  theme(legend.position = 'none')+
+  ylab('Population synchrony (corr)')
+
+
+```
+
+
+
+
+
+#######################################
+## Imputation of missing species data
+###########################
+
+
+# Look at the subsetted LB10 data 
+*again selecting (as with bugs.subs6) spp occurring in >5 streams and more than 7y* 
+```{r}
+
+
+bugs.imp=
+ cbind(bugs %>%
+        filter(!year %in% c('1981', '1982')) %>% # excluding these years
+        filter(!Code %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% # excluding these sites
+        select(Code,year) ,
+
+bugs %>% 
+        filter(!year %in% c('1981', '1982')) %>%
+        filter(!Code %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% 
+        select( names(spp_site_occur[spp_site_occur>5]) & names(spp_year_occ[spp_year_occ>7]))
+)
+```
+
+
+ Which sites in LB10?
+```{r fig.width=6}
+site.occur %>% 
+  as.data.frame() %>% 
+  filter(!Var2 %in% c('1981', '1982')) %>%
+  filter(!Var1 %in% c( 'LI3','LI5','GI1','GI2','CI6','CI3')) %>% 
+ ggplot()+aes(Var2, Var1)+geom_tile(col='grey40',aes(fill=as.factor(Freq)))+theme(axis.text.x = element_text(angle = 90, vjust = 0.5))+
+ ggtitle('LB10 most complete')+theme(legend.position = 'none')+xlab(NULL)+ylab(NULL)
+```
+
+# Load some packages for imputation functions
+```{r}
+install.packages('imputeTS')
+library(imputeTS)
+
+install.packages('zoo')
+library(zoo)
+```
+
+
+
+# Function that uses the *imputeTS::na_ma function* to get the moving average (4y before & 4y after) mean for missing values (using floor to convert <1 to zeros)
+```{r}
+NA2ma=function(x){
+  x=floor(imputeTS::na_ma(x, 4, weighting='simple'))
+  return(x)
+}
+
+
+NA2ma(c(2,3,5,6,7,81,NA,6,6,6,6))
+```
+
+
+
+
+# isolate single site for *imputation for each species*
+# *CI1.subs*
+*imputation using the subset data with spp in >5 sites*
+```{r}
+b.CI1.imp=
+  bugs.imp %>% 
+  filter(Code=='CI1')
+
+b.CI1.imp=# add extra row with missing year and NA for spp abundances
+b.CI1.imp %>% 
+  add_row(Code='CI1', year=1991)
+
+# sort to order by year
+b.CI1.imp=
+b.CI1.imp[order(b.CI1.imp$year),]
+
+
+# impute species as median abundance for the entire time series
+b.CI1.imp=
+  cbind.data.frame(b.CI1.imp[,c(1,2)],
+   apply(b.CI1.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+# just a comparison of the effect of imputing using the overall sp median (make too low imputation)
+zio=
+  cbind.data.frame(b.CI1.subs[,c(1,2)],
+   apply(b.CI1.subs[,-c(1,2)], 2, NA2median)
+  )
+
+```
+
+```{r}
+plot(
+rowSums(decostand(b.CI1.imp[,-c(1,2)], 'pa')), type='l')
+
+
+plot(
+rowSums(decostand(zio[,-c(1,2)], 'pa')), type='l')
+
+```
+
+# CI2 imputation
+*this site is missing 1991 (as all sites) and 2009 , 2011*
+```{r}
+b.CI2.imp=
+  bugs.imp %>% 
+  filter(Code=='CI2')
+
+b.CI2.imp=# add extra row with missing year and NA for spp abundances
+b.CI2.imp %>% 
+  add_row(Code='CI2', year=1991)
+
+b.CI2.imp=# add extra row with missing year and NA for spp abundances
+b.CI2.imp %>% 
+  add_row(Code='CI2', year=2009)
+
+b.CI2.imp=# add extra row with missing year and NA for spp abundances
+b.CI2.imp %>% 
+  add_row(Code='CI2', year=2011)
+
+
+# sort to order by year
+b.CI2.imp=
+b.CI2.imp[order(b.CI2.imp$year),]
+
+
+# impute species as median abundance for the entire time series
+b.CI2.imp=
+  cbind.data.frame(b.CI2.imp[,c(1,2)],
+   apply(b.CI2.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(
+rowSums(decostand(b.CI2.imp[,-c(1,2)], 'pa')), type='l')
+
+
+```
+
+#CI4 imputation
+*site is missing only 1991*
+```{r}
+b.CI4.imp=
+  bugs.imp %>% 
+  filter(Code=='CI4')
+
+b.CI4.imp=# add extra row with missing year and NA for spp abundances
+b.CI4.imp %>% 
+  add_row(Code='CI4', year=1991)
+
+# sort to order by year
+b.CI4.imp=
+b.CI4.imp[order(b.CI4.imp$year),]
+
+
+# impute species as median abundance for the entire time series
+b.CI4.imp=
+  cbind.data.frame(b.CI4.imp[,c(1,2)],
+   apply(b.CI4.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(
+rowSums(decostand(b.CI4.imp[,-c(1,2)], 'pa')), type='l')
+
+
+```
+
+#CI5 imputation
+*site is missing only 1991, 2009, 2011*
+```{r}
+b.CI5.imp=
+  bugs.imp %>% 
+  filter(Code=='CI5')
+
+b.CI5.imp=# add extra row with missing year and NA for spp abundances
+b.CI5.imp %>% 
+  add_row(Code='CI5', year=1991)
+
+
+b.CI5.imp=# add extra row with missing year and NA for spp abundances
+b.CI5.imp %>% 
+  add_row(Code='CI5', year=2009)
+
+b.CI5.imp=# add extra row with missing year and NA for spp abundances
+b.CI5.imp %>% 
+  add_row(Code='CI5', year=2011)
+
+
+# sort to order by year
+b.CI5.imp=
+b.CI5.imp[order(b.CI5.imp$year),]
+
+
+# impute species as median abundance for the entire time series
+b.CI5.imp=
+  cbind.data.frame(b.CI5.imp[,c(1,2)],
+   apply(b.CI5.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.CI5.imp$year,
+rowSums(decostand(b.CI5.imp[,-c(1,2)], 'pa')), type='l')
+
+
+```
+
+
+
+# Impute LI1 *only 1991 missing*
+
+```{r}
+b.LI1.imp=
+  bugs.imp %>% 
+  filter(Code=='LI1')
+
+b.LI1.imp=# add extra row with missing year and NA for spp abundances
+b.LI1.imp %>% 
+  add_row(Code='LI1', year=1991)
+
+# sort to order by year
+b.LI1.imp=
+b.LI1.imp[order(b.LI1.imp$year),]
+
+# impute species as median abundance for the entire time series
+b.LI1.imp=
+  cbind.data.frame(b.LI1.imp[,c(1,2)],
+   apply(b.LI1.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.LI1.imp$year,
+rowSums(decostand(b.LI1.imp[,-c(1,2)], 'pa')), type='l')
+
+```
+
+
+# Impute LI2 *only 1991 missing*
+
+```{r}
+b.LI2.imp=
+  bugs.imp %>% 
+  filter(Code=='LI2')
+
+b.LI2.imp=# add extra row with missing year and NA for spp abundances
+b.LI2.imp %>% 
+  add_row(Code='LI2', year=1991)
+
+# sort to order by year
+b.LI2.imp=
+b.LI2.imp[order(b.LI2.imp$year),]
+
+# impute species as median abundance for the entire time series
+b.LI2.imp=
+  cbind.data.frame(b.LI2.imp[,c(1,2)],
+   apply(b.LI2.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.LI2.imp$year,
+rowSums(decostand(b.LI2.imp[,-c(1,2)], 'pa')), type='l')
+
+```
+
+
+# Impute LI4 *missing 1991, 2008, 2009, 20011*
+
+```{r}
+b.LI4.imp=
+  bugs.imp %>% 
+  filter(Code=='LI4')
+
+b.LI4.imp=# add extra row with missing year and NA for spp abundances
+b.LI4.imp %>% 
+  add_row(Code='LI4', year=1991)
+
+b.LI4.imp=# add extra row with missing year and NA for spp abundances
+b.LI4.imp %>% 
+  add_row(Code='LI4', year=2008)
+
+b.LI4.imp=# add extra row with missing year and NA for spp abundances
+b.LI4.imp %>% 
+  add_row(Code='LI4', year=2009)
+
+b.LI4.imp=# add extra row with missing year and NA for spp abundances
+b.LI4.imp %>% 
+  add_row(Code='LI4', year=2011)
+
+
+# sort to order by year
+b.LI4.imp=
+b.LI4.imp[order(b.LI4.imp$year),]
+
+# impute species as median abundance for the entire time series
+b.LI4.imp=
+  cbind.data.frame(b.LI4.imp[,c(1,2)],
+   apply(b.LI4.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.LI4.imp$year,
+rowSums(decostand(b.LI4.imp[,-c(1,2)], 'pa')), type='l')
+
+```
+
+
+
+# Impute LI6 *missing 1991, 1994*
+
+```{r}
+b.LI6.imp=
+  bugs.imp %>% 
+  filter(Code=='LI6')
+
+b.LI6.imp=# add extra row with missing year and NA for spp abundances
+b.LI6.imp %>% 
+  add_row(Code='LI6', year=1991)
+
+b.LI6.imp=# add extra row with missing year and NA for spp abundances
+b.LI6.imp %>% 
+  add_row(Code='LI6', year=1994)
+
+
+# sort to order by year
+b.LI6.imp=
+b.LI6.imp[order(b.LI6.imp$year),]
+
+# impute species as median abundance for the entire time series
+b.LI6.imp=
+  cbind.data.frame(b.LI6.imp[,c(1,2)],
+   apply(b.LI6.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.LI6.imp$year,
+rowSums(decostand(b.LI6.imp[,-c(1,2)], 'pa')), type='l')
+
+```
+
+
+# Impute LI7 *missing 1991, 1994*
+
+```{r}
+b.LI7.imp=
+  bugs.imp %>% 
+  filter(Code=='LI7')
+
+b.LI7.imp=# add extra row with missing year and NA for spp abundances
+b.LI7.imp %>% 
+  add_row(Code='LI7', year=1991)
+
+b.LI7.imp=# add extra row with missing year and NA for spp abundances
+b.LI7.imp %>% 
+  add_row(Code='LI7', year=1994)
+
+
+# sort to order by year
+b.LI7.imp=
+b.LI7.imp[order(b.LI7.imp$year),]
+
+# impute species as median abundance for the entire time series
+b.LI7.imp=
+  cbind.data.frame(b.LI7.imp[,c(1,2)],
+   apply(b.LI7.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.LI7.imp$year,
+rowSums(decostand(b.LI7.imp[,-c(1,2)], 'pa')), type='l')
+
+```
+
+
+
+# Impute LI8 *missing 1991, 1994, 2011*
+
+```{r}
+b.LI8.imp=
+  bugs.imp %>% 
+  filter(Code=='LI8')
+
+b.LI8.imp=# add extra row with missing year and NA for spp abundances
+b.LI8.imp %>% 
+  add_row(Code='LI8', year=1991)
+
+b.LI8.imp=# add extra row with missing year and NA for spp abundances
+b.LI8.imp %>% 
+  add_row(Code='LI8', year=1994)
+
+
+b.LI8.imp=# add extra row with missing year and NA for spp abundances
+b.LI8.imp %>% 
+  add_row(Code='LI8', year=2011)
+
+
+
+# sort to order by year
+b.LI8.imp=
+b.LI8.imp[order(b.LI8.imp$year),]
+
+# impute species as median abundance for the entire time series
+b.LI8.imp=
+  cbind.data.frame(b.LI8.imp[,c(1,2)],
+   apply(b.LI8.imp[,-c(1,2)], 2, NA2ma)
+  )
+
+plot(b.LI8.imp$year,
+rowSums(decostand(b.LI8.imp[,-c(1,2)], 'pa')), type='l')
+
+```
+
+
+## RBIND all imputed sites into one combined df
+*this LB10.imp, includes spp observed in >5 streams & 7years, to allow analysis of synchrony using wavelet methods*
+
+```{r}
+LB10.imp=rbind.data.frame(b.CI1.imp, b.CI2.imp, b.CI4.imp, b.CI5.imp, b.LI1.imp, b.LI2.imp, b.LI4.imp,
+                          b.LI6.imp, b.LI7.imp, b.LI8.imp)
+
+rownames(LB10.imp)=paste(LB10.imp$Code, LB10.imp$year, sep="_")
+```
+
+
+# *How many years for each species in the LB10.imp (some spp are present in <7y)*
+I think this is because the vector with years for each spp comes from the complete data (all streams)
+So when I use it to subset spp in the imputed df, two species then had lower n of years than that.
+```{r}
+LB10.imp %>% 
+  select(-Code) %>% 
+  group_by(year) %>% summarise_all(sum) %>% 
+  select(-year) %>% 
+  decostand('pa') %>% 
+  colSums() %>% 
+  sort(decreasing = T)
+```
+
+
+
+
+
+# Create a vector with species identity for the reduced df with 10 streams and no holes
+```{r}
+speciesID.imp=
+colnames(LB10.imp[,-c(1,2)])
+```
+
+# The list of *species synchrony imputed* for each species between each stream in the reduced set of sites (LB10.imp). Based on simple correlation
+```{r}
+spp.list.corr.imp<-list()
+
+for(spp in 1:length(speciesID.imp)) {
+  spp.list.corr.imp[[spp]]= 
+  #speciesID.subs=as.factor(names(spp_site_occur[spp_site_occur>6]))
+  
+  sppcorr=
+  LB10.imp %>% 
+  select(Code, year, speciesID.imp[spp]) %>%  
+  spread(Code, value=speciesID.imp[spp]) %>% select(-year) %>% 
+  cor(method='spearman') %>% 
+  gdata::unmatrix() %>% 
+  data.frame() %>% 
+  cbind(rep(speciesID.imp[spp], 1 )) %>% 
+    cbind(row.names(.)) %>% 
+  `colnames<-`(c('synch.imp', 'Species','site.pair'))# use this function: `colnames<-` to assign column names within a pipe
+    }
+  
+
+spp.list.corr.imp[[12]]
+
+```
+
+# Derive the long format of *species synchrony with imputed values*
+*this is like the synchronies_spp but with imputed values from missing years-spp*
+```{r}
+synchronies_spp.imp=
+rbindlist(spp.list.corr.imp)
+
+synchronies_spp.imp=
+synchronies_spp.imp %>% 
+  filter(synch.imp != 1)
+
+#add column with site-pairs and species
+synchronies_spp.imp$site.pair_species=
+  paste(synchronies_spp.imp$site.pair, synchronies_spp.imp$Species, sep='_')
+```
+
+# add the unique site-pair and species combination for the synchronies_spp data (not the imputed)
+```{r}
+synchronies_spp$site.pair_species=
+  paste(synchronies_spp$site.pair, synchronies_spp$Species, sep='_')
+```
+
+# add the imputed species level synchronies to the synchronies_df (where there are info on dist, zonation trt)
+```{r}
+synchronies_spp$synch.imputed=
+  synchronies_spp.imp$synch.imp[match(synchronies_spp$site.pair_species, synchronies_spp.imp$site.pair_species)]
+```
+
+# Nice correlation between *imputed and observed synchrony for each species*
+```{r}
+synchronies_spp %>% 
+  ggplot()+aes(synch, synch.imputed)+geom_point()
+
+summary(lm(synch~synch.imputed, data=synchronies_spp))
+
+```
+
+
+# Create a list similar to spp.list.corr but as simple correlation matrix. Used for calculating the mean across species.
+
+```{r}
+list2.imp<-list()
+
+for(spp in 1:length(speciesID.imp)) {
+  list2.imp[[spp]]= 
+  #speciesID.subs=as.factor(names(spp_site_occur[spp_site_occur>6]))
+  
+  sppcorr=
+  LB10.imp %>% 
+  select(Code, year, speciesID.imp[spp]) %>%  
+  spread(Code, value=speciesID.imp[spp]) %>% select(-year) %>% 
+  cor(method='spearman')
+}
+
+list2.imp[41]
+```
+
+# Derive the mean synchrony across sites based on the mean synchrony of species in LB10 imputed missing years
+```{r}
+array2.imp=array(as.numeric(unlist(list2.imp)), dim=c(length(unique(LB10.imp$Code)), length(unique(LB10.imp$Code)), length(speciesID.imp)))
+dimnames(array2.imp)=list( unique(LB10.imp$Code), unique(LB10.imp$Code),speciesID.imp )
+
+array2.imp[,,43]
+
+```
+
+# The mean synchrony across LB10 imputed sites based on simple correlation across populations from species occurring > 6 streams
+```{r}
+mean_spp_corr.mat.imp=
+apply(array2.imp, c(1,2), mean, na.rm=T)
+```
+
+# *Plotting the man pop synchrony with imputated years shows no effect of imputation, if anything, overall synch values seems lower!*
+```{r fig.width=7}
+#library(corrplot)
+corrplot(round(mean_spp_corr.mat.imp,2), method='color', type='lower', addCoef.col = "black", title = 'Mean pop synchrony (corr-imputed)', mar=c(0,0,2,0), number.cex = .8, tl.cex = 0.8)
+```
+
+
+
+# extract diversity specific timeseries *needed to claculate on loops etc*
+*abund.ts*
+```{r}
+richness.ts=
+lb10.div %>% 
+  select(c(Code,year,richness)) %>%
+  pivot_wider(names_from = year, values_from = richness) %>% as.data.frame()
+
+shannon.ts=
+lb10.div %>% 
+  select(c(Code,year,shannon)) %>%
+  pivot_wider(names_from = year, values_from = shannon) %>% as.data.frame()
+
+
+simpson.ts=
+lb10.div %>% 
+  select(c(Code,year,simpson)) %>%
+  pivot_wider(names_from = year, values_from = simpson) %>% as.data.frame()
+
+rownames(richness.ts)=richness.ts$Code
+rownames(shannon.ts)=shannon.ts$Code
+rownames(simpson.ts)=simpson.ts$Code
+
+richness.ts$Code=NULL
+shannon.ts$Code=NULL
+simpson.ts$Code=NULL
+
+
+abund.ts=
+  lb10.div %>% 
+  select(c(Code, year, abund)) %>% 
+  pivot_wider(names_from = year, values_from = abund) %>% as.data.frame()
+
+abund.ts$Code=NULL
+
+```
+
+
+###############################
+## The moving window synchrony
+###############################
+
+#function that calculates the population synch for each spp and rbindlist the list
+```{r}
+pop_synch_f=function(df){
+  testlist<-list()
+
+for(spp in 1:length(speciesID.subs)) {
+testlist[[spp]]= 
+  #speciesID.subs=as.factor(names(spp_site_occur[spp_site_occur>6]))
+  
+  #sppcorr=
+  df %>% 
+  select(Code, year, speciesID.subs[spp]) %>%  
+  spread(Code, value=speciesID.subs[spp]) %>% select(-year) %>% 
+  cor(method='spearman') %>% 
+  gdata::unmatrix() %>% 
+  data.frame() %>% 
+  cbind(rep(speciesID.subs[spp], 1 )) %>% 
+    cbind(row.names(.)) %>% 
+  `colnames<-`(c('synch', 'Species','site.pair'))# use this function: `colnames<-` to assign column names within a pipe
+  
+ }
+ 
+  res=data.table::rbindlist(testlist) 
+  res=res %>%  filter(synch != 1)
+  res$geodist=dist.pairs$dist[match(res$site.pair, dist.pairs$site_pairs)] # add the geodist
+  return(res)
+  
+}
+```
+
+
+# create a timewindow list to include year given year in the window, needed to subset df while running the synchrony function
+```{r}
+time.windowlist=list()
+ywindow=5
+for(i in 1:(length(yearID)-ywindow)){
+time.windowlist[[i]]=  (yearID[i:(i+5)])}
+
+```
+
+# run the pop_synch function over each yeargroup in window ,as defined by time.windolist
+```{r}
+
+pop_synchronies_mw.list=list()
+
+for(mwy in 1:length(time.windowlist)){
+pop_synchronies_mw.list[[mwy]]=
+pop_synch_f(LB10.imp %>% filter(year %in% time.windowlist[[mwy]]))
+}
+
+pop_synchronies_mw.list[[24]]
+
+```
+
+# Now calculate the man across species of synchrony for each pairwise site
+```{r}
+meanpop_synchronies_mw.list=list()
+
+for(mwy in 1:length(time.window5)){
+meanpop_synchronies_mw.list[[mwy]]=
+pop_synchronies_mw.list[[mwy]] %>% 
+  group_by(site.pair) %>% 
+  summarise(mean.pop.synch=mean(synch), geodist=mean(geodist)) %>% 
+  mutate(timewindow=rep(time.window5[[mwy]], 90)) # add timewindow info 90 rows for each yearwindow (site-pairs)
+         }
+
+meanpop_synchronies_mw.list[[1]]
+
+```
+
+# Rbind list of the moving window population synchr and add timewindow and NAO values
+```{r}
+meanpop_synchronies_mw=
+rbindlist(meanpop_synchronies_mw.list) %>% 
+  mutate(timewindow=as.factor(timewindow)) 
+
+meanpop_synchronies_mw$NAOmw=wNAO_window$NAOwindow[match(meanpop_synchronies_mw$timewindow, wNAO_window$time.window5)]
+
+```
+
+# establish quantile values for NAOmw
+```{r}
+library(gtools)
+#meanpop_synchronies_mw$NAOmw.q4=quantcut(meanpop_synchronies_mw$NAOmw, q=4)
+
+#meanpop_synchronies_mw$NAOmw.q6=quantcut(meanpop_synchronies_mw$NAOmw, q=6)
+
+meanpop_synchronies_mw$NAOmw.q5=quantcut(meanpop_synchronies_mw$NAOmw, q=5)
+
+
+
+
+```
+
+# Plot of mean population synchorny moving window vs quantile NAO
+```{r fig.width=5.5}
+meanpop_synchronies_mw %>% 
+ggplot()+aes(geodist, mean.pop.synch, col=NAOmw.q4)+geom_smooth(method='lm', se=F)+scale_color_brewer (palette='Reds')+
+  ylab('Mean population synchrony (mw)')+xlab('Distance')+geom_smooth(col='grey40', method='lm', size=2, linetype='dashed')
+
+meanpop_synchronies_mw %>% 
+ggplot()+aes(geodist, mean.pop.synch, col=NAOmw.q4)+geom_smooth(se=F)+scale_color_brewer (palette='Reds')+
+  ylab('Mean population synchrony (mw)')+xlab('Distance')
+
+
+meanpop_synchronies_mw %>% 
+ggplot()+aes(geodist, mean.pop.synch, col=NAOmw.q5)+geom_smooth(method='lm', se=F)+scale_color_brewer (palette='Reds')+
+  ylab('Mean population synchrony (mw)')+xlab('Distance')+geom_smooth(col='grey40', method='lm', size=1.5, linetype='dashed')+
+  labs(col='NAO quantiles')
+
+
+```
+
+# *Plot for Fig.3 using all timewindows
+*not in paper and not reflecting the model*
+```{r}
+#pdf("Fig.3_Synch_slopes.pdf", w=5.5, h=4)
+meanpop_synchronies_mw %>% 
+ggplot()+aes(geodist, mean.pop.synch, col=NAOmw.q5)+geom_smooth(method='lm', se=F)+scale_color_brewer (palette='Reds')+
+  ylab('Mean population synchrony (mw)')+xlab('Distance')+geom_smooth(col='grey40', method='lm', size=1.5, linetype='dashed')+
+  labs(col='NAO quantiles')
+
+#dev.off()
+```
+
+
+
+
+# simple model of synchrony ~ geodistance*NAO interaction
+positive interaction effect but weak when including every second window, and removing duplicated pairs*
+*not in paper*
+```{r}
+meanpop_synchronies_mw
+
+m0=glm(mean.pop.synch~geodist*NAOmw, data=meanpop_synchronies_mw, family='gaussian')
+summary(m0)
+
+m.int=glm(mean.pop.synch~geodist*NAOmw, 
+       data=meanpop_synchronies_mw[!duplicated(meanpop_synchronies_mw$mean.pop.synch),] %>% 
+         filter(timewindow %in% time.window5[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29)]),
+       family = 'gaussian')
+
+summary(m.int)
+
+```
+
+
+
+# Model random effect of NAO quantile to mirror the plot with decay...
+*Support for the inclusion of random INTERCEPT (less so for random slope) effect for different NAO quantiles* 
+```{r}
+library(nlme)
+
+# no random eff at all
+m0= gls(mean.pop.synch ~ geodist,
+        data= meanpop_synchronies_mw[!duplicated(meanpop_synchronies_mw$mean.pop.synch),] %>% 
+          filter(timewindow %in% time.window5[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29)]) , method='REML')
+summary(m0)
+
+# random intercept for NAO quantiles
+m1=
+  lme(mean.pop.synch ~ geodist , random=~1|NAOmw.q5, 
+      data= meanpop_synchronies_mw[!duplicated(meanpop_synchronies_mw$mean.pop.synch),] %>% 
+          filter(timewindow %in% time.window5[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29)]) )
+
+#random intercept and slope
+m2=
+  lme(mean.pop.synch ~ geodist , random=~1+geodist|NAOmw.q5, 
+      data= meanpop_synchronies_mw[!duplicated(meanpop_synchronies_mw$mean.pop.synch),] %>% 
+         filter(timewindow %in% time.window5[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29)]))
+        
+
+
+summary(m1)
+summary(m2)
+
+# support for inclusion of random intercept
+anova(m0,m1,m2)
+
+
+
+```
+
+
+
+
+
+# create subset clean (model like) version of mean population synchrony mw, for plotting model fits more easily
+Removing duplicated synchrony values and skipping every second time window (as done in the models)
+```{r}
+meanpop_synchronies_mw_model= meanpop_synchronies_mw[!duplicated(meanpop_synchronies_mw$mean.pop.synch),] %>% 
+         filter(timewindow %in% time.window5[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29)])
+
+meanpop_synchronies_mw_model$m1fit<-
+predict(m1)
+
+meanpop_synchronies_mw_model$m2fit<-
+predict(m2)
+
+
+```
+
+# plotting *Fig4 with equal slope* for NAO quantiles (ex fig.3)
+```{r fig.width=5.5}
+pdf("Fig.4_intercept_revis.pdf", w=5.5, h=4)
+meanpop_synchronies_mw_model %>% 
+ggplot()+aes(geodist, mean.pop.synch, col=NAOmw.q5)+geom_line(aes(y=m1fit), size=1.2)+scale_color_brewer (palette='Reds')+
+  ylab('Mean population synchrony (mw)')+xlab('Distance')+geom_smooth(col='grey10', method='lm', size=1, linetype='dashed')+
+  labs(col='NAO quantiles')
+dev.off()
+```
+
+
+#model m2 (random slope) Plotting
+```{r}
+meanpop_synchronies_mw_model %>% 
+ggplot()+aes(geodist, mean.pop.synch, col=NAOmw.q5)+geom_line(aes(y=m2fit), size=1.2)+scale_color_brewer (palette='Reds')+
+  ylab('Mean population synchrony (mw)')+xlab('Distance')+geom_smooth(col='grey10', method='lm', size=1, linetype='dashed')+
+  labs(col='NAO quantiles')
+```
+
+
+
+
+
+#########################################
+# Calculate Abundance synchrony moving window
+#########################################
+
+# abundance synchrony mw
+```{r}
+abund.synch_mw=as.data.frame(matrix(nrow=length(time.window5), ncol=1))
+
+
+rownames(abund.synch_mw)=time.window5
+colnames(abund.synch_mw)='Abund.synch.mw'
+
+
+
+# the abund synch as simple cor
+for(y in 1: length(time.window5)){
+ abund.synch_mw[y,]= mean(
+   cor(
+     t(abund.ts[,c(y:(y+5))]), method='spearman'
+     )
+   )
+}
+```
+
+
+
+
+add moving window nao
+```{r}
+abund.synch_mw$wNAOwindow=wNAO_window$NAOwindow[match(rownames(abund.synch_mw), wNAO_window$time.window5)]
+```
+
+# calculate the variance of the abundance synchronmy mw
+```{r}
+abund.synch.var_mw=as.data.frame(matrix(nrow=length(time.window5), ncol=1))
+
+
+rownames(abund.synch.var_mw)=time.window5
+colnames(abund.synch.var_mw)='Abund.synch.var.mw'
+
+
+
+# the abund synch as simple cor
+for(y in 1: length(time.window5)){
+ abund.synch.var_mw[y,]= var(as.vector(
+   cor(
+     t(abund.ts[,c(y:(y+5))]), method='spearman'
+     )
+   ))
+}
+```
+# add variance in abund synchrony
+```{r}
+abund.synch_mw$synch.var=abund.synch.var_mw$Abund.synch.var.mw
+```
+
+
+# Plot abundance synchrony mw vs NAO
+
+```{r fig.width=6}
+
+
+abund.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),] %>% 
+  #mutate(RegRich.mw= reg.richness %>% rollmean(k=6, align = 'center')) %>% 
+  #mutate(MeanRich.mw= rowMeans(Richness.mw)) %>% 
+  ggplot()+aes(wNAOwindow, Abund.synch.mw, label=row.names(abund.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),]))+geom_point(size=2)+geom_text_repel(size=3)+
+  geom_smooth( col='grey50', alpha=.3, method='lm')+ylab('Abundance synchrony mw')+ xlab('Winter NAO mw')
+
+
+```
+
+
+
+# Plot the abundance mw over time along with NAO window
+```{r fig.width=6}
+
+abund.synch_mw %>% 
+  ggplot()+aes(row.names(abund.synch_mw), Abund.synch.mw, group=1)+geom_point(size=3)+theme_bw()+
+  geom_path(aes(row.names(abund.synch_mw) ,wNAOwindow), col='blue')+theme(axis.text.x = element_text(angle=45, hjust=1))+
+  xlab(NULL)+ylab('Mean abundance snchrony')+scale_y_continuous(sec.axis = sec_axis(~.*1, name = "Winter NAO mw"))+theme(axis.title.y.right = element_text(color = "blue")) +theme(axis.text.y.right = element_text(color='blue'))+theme(axis.title = element_text(size=12), axis.text.x = element_text(size=12)) +scale_x_discrete(labels=time.window5_skip)
+
+abund.synch_mw %>% 
+  ggplot()+aes(row.names(abund.synch_mw), Abund.synch.mw, group=1)+geom_point(size=3)+theme_bw()+geom_errorbar(aes(ymin=Abund.synch.mw-synch.var, ymax=Abund.synch.mw+synch.var), col='grey60')+
+  geom_path(aes(row.names(abund.synch_mw) ,wNAOwindow), col='blue')+theme(axis.text.x = element_text(angle=45, hjust=1))+
+  xlab(NULL)+ylab('Mean abundance snchrony')+scale_y_continuous(sec.axis = sec_axis(~.*1, name = "Winter NAO mw"))+theme(axis.title.y.right = element_text(color = "blue")) +theme(axis.text.y.right = element_text(color='blue'))+theme(axis.title = element_text(size=12), axis.text.x = element_text(size=12)) +scale_x_discrete(labels=time.window5_skip)
+
+
+```
+
+# Save plot abundance synchrony
+# Plot *part of Fig.5 (ex fig.4)* 
+```{r}
+pdf('Abund_synch_time.pdf', w=6, h=3.5)
+abund.synch_mw %>% 
+  ggplot()+aes(row.names(abund.synch_mw), Abund.synch.mw, group=1)+geom_point(size=3)+theme_bw()+geom_errorbar(aes(ymin=Abund.synch.mw-synch.var, ymax=Abund.synch.mw+synch.var), col='grey60', size=0.6)+
+  geom_point(size=3)+
+  geom_path(aes(row.names(abund.synch_mw) ,wNAOwindow), col='blue')+theme(axis.text.x = element_text(angle=45, hjust=1))+
+  xlab(NULL)+ylab('Mean abundance snchrony')+scale_y_continuous(sec.axis = sec_axis(~.*1, name = "Winter NAO mw"))+theme(axis.title.y.right = element_text(color = "blue")) +theme(axis.text.y.right = element_text(color='blue'))+theme(axis.title = element_text(size=12), axis.text.x = element_text(size=12)) +scale_x_discrete(labels=time.window5_skip)
+
+dev.off()
+```
+
+
+
+# Modelling abundance synchrony vs NAO
+```{r}
+#library(nlme)
+# the proper model for abundance
+m_abun=gls(Abund.synch.mw~wNAOwindow,data=abund.synch_mw[c(1,3,5,7,9,11,13,15,17,19,21,23,25,27,29),], cor=corAR1(0.7))
+summary(m_abun)  # ab.synch = 0.26 +0.35 * NAOw
+```
+
+# Nao phases not related to abundance absolute values, but just its spatial synchr across streams
+```{r}
+
+lb10.div %>% 
+  ggplot()+aes(NAOw, log(abund), col=Code)+geom_smooth(method='lm', se=F)+geom_point()
+```
+
+
+
+
+#############################
+### Wavelet linear model ####
+# *testing effect of NAO vs abundance*
+
+```{r}
+abund.ts
+t_NAOw_85.18.exp
+
+dat=list(as.matrix(abund.ts), t_NAOw_85.18.exp)
+dat=lapply(FUN=function(x){cleandat(x,time.lb10,1)$cdat},X=dat)
+
+```
+
+
+```{r}
+wlm_nao_abu=wlm(dat, time.lb10, resp=1, pred=2, norm='powall' )
+
+wlm_nao_abu$coefs
+summary(wlm_nao_abu)
+wlm_nao_abu$coher
+
+syncexpl(wlm_nao_abu)
+wlm_nao_abu$wts
+
+
+```
+
+
+# *The predicted synchrony in abundance from NAO alone*
+```{r}
+predabund_sync=predsync(wlm_nao_abu)
+
+plotmag(predabund_sync, title='NAO-Predicted synchrony abundance')
+
+plot_wlm_predict=plotmag(predabund_sync, title='NAO-Predicted synchrony abundance')
+  
+
+```
+
+```{r}
+
+plotmag(
+    wpmf(
+cleandat(
+lb10.div %>% 
+  select(c(Code,year,abund)) %>%
+  pivot_wider(names_from = year, values_from = abund) %>% select(-Code) %>% as.matrix(),
+   times=time.lb10, clev=4)$cdat, times=time.lb10, sigmethod = 'quick'), title='Wpmf Abundance')
+
+
+
+```
+
+# export wavelet model prediction plot
+#Plot *part of Fig.5 (wavelet model)*
+```{r}
+pdf('plot_wlm_predict.pdf', w=6, h=4.5)
+plotmag(predabund_sync, title='NAO-Predicted synchrony abundance')
+dev.off()
+```
+
+# export wavelet model prediction plot
+#Plot *part of Fig.5 (wawelet observed synch)*
+```{r}
+pdf('plot_wpmf_abund.pdf', w=6, h=4.5)
+
+plotmag(
+    wpmf(
+cleandat(
+lb10.div %>% 
+  select(c(Code,year,abund)) %>%
+  pivot_wider(names_from = year, values_from = abund) %>% select(-Code) %>% as.matrix(),
+   times=time.lb10, clev=4)$cdat, times=time.lb10, sigmethod = 'quick'), title='Wpmf Abundance')
+
+dev.off()
+```
+
+
+##
+```{r}
+#library(wsyn)
+
+bandtest(wlm_nao_abu, c(4,6))
+
+```
+
+
+# Extract the yearly temperature series, to use in wavelet modelling along NAO
+```{r}
+Tyearly.wide=
+Tyearly %>% 
+  pivot_wider(values_from = mean.w.T, names_from = Site) %>% as.data.frame()
+
+rownames(Tyearly.wide)=Tyearly.wide$Ante
+Tyearly.wide$Ante=NULL
+Tyearly.wide
+
+```
+# that is the trasposed df to use
+```{r}
+t(Tyearly.wide)
+```
+
+```{r}
+library(wsyn)
+```
+
+# Prepare for linear wavelet model using also Temperature 
+```{r}
+dat2=list(as.matrix(abund.ts), t_NAOw_85.18.exp, t(Tyearly.wide))
+dat2=lapply(FUN=function(x){cleandat(x,time.lb10,1)$cdat},X=dat2)
+```
+
+# Wavelet model including Tempe does not add much explained variation. 
+```{r}
+wlm_nao.Temp_abu=wlm(dat2, time.lb10, resp=1, pred=c(2,3), norm='powall' )
+
+
+summary(wlm_nao.Temp_abu)
+wlm_nao_abu$coher
+
+syncexpl(wlm_nao.Temp_abu)
+```
+
+```{r}
+plotmag(predsync(wlm_nao.Temp_abu))
+```
+
+
